@@ -7,7 +7,7 @@ import Synchrosphere
 protocol DemoController : class {
     
     /// Needs to be implemented to create a `SyncsController` to control the spehro robot.
-    func makeSyncsController(engine: SyncsEngine, config: SyncsControllerConfig, keyInput: KeyInput) -> SyncsController
+    func makeSyncsController(engine: SyncsEngine, config: SyncsControllerConfig, input: Input) -> SyncsController
     
     /// An explanation of what this demo is doing - e.g. giving help about possible input or expected behavior.
     ///
@@ -22,22 +22,22 @@ extension DemoController {
 }
 
 /// Alternatively, the demo can be a function with this signature.
-typealias FactoryFunction = (_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ keyInput: KeyInput) -> SyncsController
+typealias FactoryFunction = (_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ input: Input) -> SyncsController
 
-/// If the user presses a key, it will be available here during the next step.
+/// Stores the current user input during a step.
 ///
 /// When the step is over, the input is cleared.
-class KeyInput {
+class Input {
     
-    /// The key input - a single character or empty string.
-    var input = ""
+    /// The key input - a single character string or an empty string.
+    var key = ""
     
-    /// Returns `true` if any input is avlaiable.
-    var hasInput: Bool {
-        return !input.isEmpty
+    /// Returns `true` if any key input is avlaiable.
+    var didPressKey: Bool {
+        return !key.isEmpty
     }
     
     func clear() {
-        input.removeAll()
+        key = ""
     }
 }

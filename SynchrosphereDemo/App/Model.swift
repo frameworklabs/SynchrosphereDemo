@@ -26,7 +26,7 @@ class Model: ObservableObject {
     @Published var logLines = [String]()
         
     private let engine = SyncsEngine()
-    private let keyInput = KeyInput()
+    private let input = Input()
     private var config = SyncsControllerConfig()
     private var demoController: DemoController?
     private var syncsController: SyncsController?
@@ -48,7 +48,7 @@ class Model: ObservableObject {
             self.logLines.append("[\(level)] \(msg)")
         }
         config.didTickCallback = { [unowned self] in
-            self.keyInput.clear()
+            self.input.clear()
         }
     }
             
@@ -56,7 +56,7 @@ class Model: ObservableObject {
         logLines.removeAll()
 
         demoController = selectedDemo.demoFactory.demoController
-        syncsController = demoController?.makeSyncsController(engine: engine, config: config, keyInput: keyInput)
+        syncsController = demoController?.makeSyncsController(engine: engine, config: config, input: input)
         
         if let explanation = demoController?.explanation {
             syncsController?.context.logInfo(explanation)
@@ -73,8 +73,8 @@ class Model: ObservableObject {
 
     func setKeyCharacters(_ keyCharacters: String) {
         guard let ctrl = syncsController else { return }
-        ctrl.context.logInfo("keys pressed: \(keyCharacters)")
-        keyInput.input = keyCharacters
+        ctrl.context.logInfo("key pressed: \(keyCharacters)")
+        input.key = keyCharacters
         ctrl.context.tick()
     }
 }
@@ -99,7 +99,7 @@ private class DefaultDemoController : DemoController {
         self.factoryFunction = factoryFunction
     }
     
-    func makeSyncsController(engine: SyncsEngine, config: SyncsControllerConfig, keyInput: KeyInput) -> SyncsController {
-        factoryFunction(engine, config, keyInput)
+    func makeSyncsController(engine: SyncsEngine, config: SyncsControllerConfig, input: Input) -> SyncsController {
+        factoryFunction(engine, config, input)
     }
 }
