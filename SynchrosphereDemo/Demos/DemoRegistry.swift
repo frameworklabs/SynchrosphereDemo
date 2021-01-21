@@ -7,7 +7,11 @@
 enum Demo : String, CaseIterable, Identifiable {
     case ioHello = "IO - Hello"
     case ioHelloByClass = "IO - Hello by Class"
-    case ioPreemptByKey = "IO - Preempt by Key"
+    case ioSubActivity = "IO - Sub Activity"
+    case ioSubActivityInModule = "IO - Sub Activity in Module"
+    case ioAwaitInput = "IO - Await Input"
+    case ioPreemptOnInput = "IO - Preempt on Input"
+    case ioPreemptWithDefer = "IO - Preempt with Defer"
     case ioMyDemo = "IO - My Demo"
     
     var id: Demo {
@@ -36,8 +40,16 @@ extension Demo {
             return .function(ioHelloFunc)
         case .ioHelloByClass:
             return .controller(IOHelloController())
-        case .ioPreemptByKey:
-            return .function(ioPreemptByKeyFunc)
+        case .ioSubActivity:
+            return .function(ioSubActivityFunc)
+        case .ioSubActivityInModule:
+            return .function(ioSubActivityInModuleFunc)
+        case .ioAwaitInput:
+            return .function(ioAwaitInputFunc)
+        case .ioPreemptOnInput:
+            return .function(ioPreemptOnInputFunc)
+        case .ioPreemptWithDefer:
+            return .function(ioPreemptWithDeferFunc)
         case .ioMyDemo:
             return .function(ioMyDemoFunc)
         }
