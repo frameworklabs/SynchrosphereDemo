@@ -141,6 +141,63 @@ func ioPreemptWithDeferFunc(_ engine: SyncsEngine, _ config: SyncsControllerConf
     }
 }
 
+/// A module containing the QueryColor activity.
+let queryColorOnceModule = Module { name in
+    activity (name.QueryColor, [name.log, name.input]) { val in
+        exec { (val.log as SyncsLogging).logInfo("Select color by pressing 'r', 'g' or 'b'") }
+        await { (val.input as Input).didPressKey(in: "rgb") }
+        exec {
+            let input: Input = val.input
+            switch input.key {
+            case "r": val.res = SyncsColor.red
+            case "g": val.res = SyncsColor.green
+            case "b": val.res = SyncsColor.blue
+            default: break
+            }
+        }
+        exit { val.res }
+    }
+}
+
+/// Queries the color from the user before starting to blink in that color.
+func ioQueryColorFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ input: Input) -> SyncsController {
+    var config = config
+    config.imports = [blinkWithDeferModule, queryColorOnceModule]
+    
+    return engine.makeController(for: config) { name, ctx in
+        activity (name.Main, []) { val in
+            run (name.QueryColor, [ctx, input]) { col in
+                val.col = col!
+            }
+            run (name.Blink, [val.col, 1000, ctx.requests])
+        }
+    }
+}
+
+/// Change the color while blinking.
+func ioConcurrentTrailsFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ input: Input) -> SyncsController {
+    var config = config
+    config.imports = [blinkWithDeferModule, queryColorOnceModule]
+    
+    return engine.makeController(for: config) { name, ctx in
+        activity (name.Main, []) { val in
+            exec { val.col = SyncsColor.red }
+            cobegin {
+                strong {
+                    `repeat` {
+                        run (name.QueryColor, [ctx, input]) { col in
+                            val.col = col!
+                        }
+                    }
+                }
+                strong {
+                    run (name.Blink, [val.col, 1000, ctx.requests])
+                }
+            }
+        }
+    }
+}
+
 /// This is a playground demo for your IO experiments.
 func ioMyDemoFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ input: Input) -> SyncsController {
     engine.makeController(for: config) { name, ctx in

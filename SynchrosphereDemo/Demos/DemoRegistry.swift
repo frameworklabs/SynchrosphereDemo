@@ -12,8 +12,10 @@ enum Demo : String, CaseIterable, Identifiable {
     case ioAwaitInput = "IO - Await Input"
     case ioPreemptOnInput = "IO - Preempt on Input"
     case ioPreemptWithDefer = "IO - Preempt with Defer"
+    case ioQueryColor = "IO - Query color"
+    case ioConcurrentTrails = "IO - Concurrent Trails"
     case ioMyDemo = "IO - My Demo"
-    
+
     var id: Demo {
         return self
     }
@@ -50,6 +52,10 @@ extension Demo {
             return .function(ioPreemptOnInputFunc)
         case .ioPreemptWithDefer:
             return .function(ioPreemptWithDeferFunc)
+        case .ioQueryColor:
+            return .function(ioQueryColorFunc)
+        case .ioConcurrentTrails:
+            return .function(ioConcurrentTrailsFunc)
         case .ioMyDemo:
             return .function(ioMyDemoFunc)
         }

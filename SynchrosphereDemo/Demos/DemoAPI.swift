@@ -2,6 +2,7 @@
 // Copyright 2021, Framework Labs.
 
 import Synchrosphere
+import Foundation // For CharacterSet
 
 /// Demo classes have to adopt to this protocol - or adhere to the `FactoryFunction` signature.
 protocol DemoController : class {
@@ -35,6 +36,11 @@ class Input {
     /// Returns `true` if any key input is avlaiable.
     var didPressKey: Bool {
         return !key.isEmpty
+    }
+    
+    /// Returns `true` if a key in the set of `candidates` is available.
+    func didPressKey(in candidates: String) -> Bool {
+        return key.rangeOfCharacter(from: CharacterSet(charactersIn: candidates)) != nil
     }
     
     func clear() {
