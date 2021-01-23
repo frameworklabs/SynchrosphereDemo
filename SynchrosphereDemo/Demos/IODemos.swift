@@ -149,13 +149,13 @@ let queryColorOnceModule = Module { name in
         exec {
             let input: Input = val.input
             switch input.key {
-            case "r": val.res = SyncsColor.red
-            case "g": val.res = SyncsColor.green
-            case "b": val.res = SyncsColor.blue
+            case "r": val.col = SyncsColor.red
+            case "g": val.col = SyncsColor.green
+            case "b": val.col = SyncsColor.blue
             default: break
             }
         }
-        exit { val.res }
+        exit { val.col }
     }
 }
 

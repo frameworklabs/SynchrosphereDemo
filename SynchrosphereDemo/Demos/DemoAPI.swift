@@ -33,12 +33,12 @@ class Input {
     /// The key input - a single character string or an empty string.
     var key = ""
     
-    /// Returns `true` if any key input is avlaiable.
+    /// Returns `true` if any key input is available.
     var didPressKey: Bool {
         return !key.isEmpty
     }
     
-    /// Returns `true` if a key in the set of `candidates` is available.
+    /// Returns `true` if a key in the set of `candidates` was pressed.
     func didPressKey(in candidates: String) -> Bool {
         return key.rangeOfCharacter(from: CharacterSet(charactersIn: candidates)) != nil
     }
