@@ -7,6 +7,7 @@ import Pappe
 /// Basic demo.
 func ioHelloFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ input: Input) -> SyncsController {
     engine.makeController(for: config) { name, ctx in
+        
         activity (name.Main, []) { val in
             `repeat` {
                 run (Syncs.SetMainLED, [SyncsColor.red])
@@ -24,6 +25,7 @@ class IOHelloController : DemoController {
     
     func makeSyncsController(engine: SyncsEngine, config: SyncsControllerConfig, input: Input) -> SyncsController {
         engine.makeController(for: config) { name, ctx in
+            
             activity (name.Main, []) { val in
                 `repeat` {
                     run (Syncs.SetMainLED, [SyncsColor.red])
@@ -39,6 +41,7 @@ class IOHelloController : DemoController {
 /// Using a sub activity.
 func ioSubActivityFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ input: Input) -> SyncsController {
     engine.makeController(for: config) { name, ctx in
+        
         activity (name.Blink, [name.color, name.periodMillis]) { val in
             `repeat` {
                 run (Syncs.SetMainLED, [val.color])
@@ -47,6 +50,7 @@ func ioSubActivityFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _
                 run (Syncs.WaitMilliseconds, [val.periodMillis])
             }
         }
+        
         activity (name.Main, []) { val in
             run (name.Blink, [SyncsColor.red, 1000])
         }
@@ -55,6 +59,7 @@ func ioSubActivityFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _
 
 /// A module hosting the blink activity to be shared by subsequent demos.
 let blinkModule = Module { name in
+    
     activity (name.Blink, [name.color, name.periodMillis]) { val in
         `repeat` {
             run (Syncs.SetMainLED, [val.color])
@@ -71,6 +76,7 @@ func ioSubActivityInModuleFunc(_ engine: SyncsEngine, _ config: SyncsControllerC
     config.imports = [blinkModule]
     
     return engine.makeController(for: config) { name, ctx in
+        
         activity (name.Main, []) { val in
             run (name.Blink, [SyncsColor.red, 1000])
         }
@@ -83,6 +89,7 @@ func ioAwaitInputFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ 
     config.imports = [blinkModule]
     
     return engine.makeController(for: config) { name, ctx in
+        
         activity (name.Main, []) { val in
             exec { ctx.logInfo("Press 's' to start blinking") }
             await { input.key == "s" }
@@ -97,6 +104,7 @@ func ioPreemptOnInputFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig
     config.imports = [blinkModule]
     
     return engine.makeController(for: config) { name, ctx in
+        
         activity (name.Main, []) { val in
             exec { ctx.logInfo("Press 'q' to stop blinking") }
             when { input.key == "q" } abort: {
@@ -110,6 +118,7 @@ func ioPreemptOnInputFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig
 
 /// An improved blink module which uses `defer` to  set led to off on preemption.
 let blinkWithDeferModule = Module { name in
+    
     activity (name.Blink, [name.color, name.periodMillis, name.requests]) { val in
         `defer` {
             let requests: SyncsRequests = val.requests
@@ -130,6 +139,7 @@ func ioPreemptWithDeferFunc(_ engine: SyncsEngine, _ config: SyncsControllerConf
     config.imports = [blinkWithDeferModule]
     
     return engine.makeController(for: config) { name, ctx in
+        
         activity (name.Main, []) { val in
             exec { ctx.logInfo("Press 'q' to stop blinking") }
             when { input.key == "q" } abort: {
@@ -143,6 +153,7 @@ func ioPreemptWithDeferFunc(_ engine: SyncsEngine, _ config: SyncsControllerConf
 
 /// A module containing the QueryColor activity.
 let queryColorOnceModule = Module { name in
+    
     activity (name.QueryColor, [name.log, name.input]) { val in
         exec { (val.log as SyncsLogging).logInfo("Select color by pressing 'r', 'g' or 'b'") }
         await { (val.input as Input).didPressKey(in: "rgb") }
@@ -165,6 +176,7 @@ func ioQueryColorFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ 
     config.imports = [blinkWithDeferModule, queryColorOnceModule]
     
     return engine.makeController(for: config) { name, ctx in
+        
         activity (name.Main, []) { val in
             run (name.QueryColor, [ctx, input]) { col in
                 val.col = col!
@@ -180,6 +192,7 @@ func ioConcurrentTrailsFunc(_ engine: SyncsEngine, _ config: SyncsControllerConf
     config.imports = [blinkWithDeferModule, queryColorOnceModule]
     
     return engine.makeController(for: config) { name, ctx in
+        
         activity (name.Main, []) { val in
             exec { val.col = SyncsColor.red }
             cobegin {
@@ -195,6 +208,192 @@ func ioConcurrentTrailsFunc(_ engine: SyncsEngine, _ config: SyncsControllerConf
                 }
             }
         }
+    }
+}
+
+/// A module containing the QueryColor activity.
+let queryColorModule = Module { name in
+    
+    activity (name.QueryColor, [name.log, name.input], [name.col]) { val in
+        `repeat` {
+            exec { (val.log as SyncsLogging).logInfo("Select color by pressing 'r', 'g' or 'b'") }
+            await { (val.input as Input).didPressKey(in: "rgb") }
+            exec {
+                let input: Input = val.input
+                switch input.key {
+                case "r": val.col = SyncsColor.red
+                case "g": val.col = SyncsColor.green
+                case "b": val.col = SyncsColor.blue
+                default: break
+                }
+            }
+        }
+    }
+}
+
+/// Change the color while blinking with a streaming activity instead of a returning one.
+func ioStreamingActivityFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ input: Input) -> SyncsController {
+    var config = config
+    config.imports = [blinkWithDeferModule, queryColorModule]
+    
+    return engine.makeController(for: config) { name, ctx in
+        
+        activity (name.Main, []) { val in
+            exec { val.col = SyncsColor.red }
+            cobegin {
+                strong {
+                    run (name.QueryColor, [ctx, input], [val.loc.col])
+                }
+                strong {
+                    run (name.Blink, [val.col, 1000, ctx.requests])
+                }
+            }
+        }
+    }
+}
+
+/// Preempts the blinking when a timer activity expires.
+func ioWeakPreemptionFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ input: Input) -> SyncsController {
+    var config = config
+    config.imports = [blinkWithDeferModule, queryColorModule]
+    
+    return engine.makeController(for: config) { name, ctx in
+        
+        activity (name.Main, []) { val in
+            exec { val.col = SyncsColor.red }
+            cobegin {
+                strong {
+                    run (Syncs.WaitSeconds, [10])
+                }
+                weak {
+                    run (name.QueryColor, [ctx, input], [val.loc.col])
+                }
+                weak {
+                    run (name.Blink, [val.col, 1000, ctx.requests])
+                }
+            }
+        }
+    }
+}
+
+/// The final IO control demo showing most of the discussed topics so far; allows to control the blinking color period.
+class IOFinalController : DemoController {
+    private let timeout: Int
+    private let periodIncrement: Int
+    
+    init(timeout: Int, periodIncrement: Int = 100) {
+        self.timeout = timeout
+        self.periodIncrement = periodIncrement
+    }
+    
+    let explanation: String? = "Blinks the LED in a color and period chosen by the user"
+
+    func makeSyncsController(engine: SyncsEngine, config: SyncsControllerConfig, input: Input) -> SyncsController {
+        engine.makeController(for: config) { name, ctx in
+            
+            activity (name.QueryColor, [], [name.col]) { val in
+                `repeat` {
+                    exec { ctx.logInfo("Select color by pressing 'r', 'g' or 'b'") }
+                    await { input.didPressKey(in: "rgb") }
+                    exec {
+                        switch input.key {
+                        case "r": val.col = SyncsColor.red
+                        case "g": val.col = SyncsColor.green
+                        case "b": val.col = SyncsColor.blue
+                        default: break
+                        }
+                    }
+                }
+            }
+            
+            activity (name.QueryPeriod, [], [name.period]) { val in
+                `repeat` {
+                    exec { ctx.logInfo("Increase period by pressing '+', decrease it by '-'") }
+                    await { input.didPressKey(in: "+-") }
+                    exec {
+                        let period: Int = val.period
+                        switch input.key {
+                        case "+": val.period = period + self.periodIncrement
+                        case "-": val.period = max(self.periodIncrement, period - self.periodIncrement)
+                        default: break
+                        }
+                    }
+                }
+            }
+            
+            activity (name.Blink, [name.col, name.period]) { val in
+                `repeat` {
+                    exec { val.lastPeriod = val.period as Int }
+                    when { val.period != val.lastPeriod as Int } abort: {
+                        `defer` { ctx.requests.setMainLED(to: .black) }
+                        `repeat` {
+                            cobegin {
+                                strong {
+                                    run (Syncs.WaitMilliseconds, [val.period])
+                                }
+                                weak {
+                                    `repeat` {
+                                        exec { val.lastCol = val.col as SyncsColor }
+                                        run (Syncs.SetMainLED, [val.col])
+                                        await { val.col != val.lastCol as SyncsColor }
+                                    }
+                                }
+                            }
+                            cobegin {
+                                strong {
+                                    run (Syncs.WaitMilliseconds, [val.period])
+                                }
+                                weak {
+                                    run (Syncs.SetMainLED, [SyncsColor.black])
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            activity (name.Main, []) { val in
+                exec {
+                    val.col = SyncsColor.red
+                    val.period = 1000
+                    val.remaining = self.timeout
+                }
+                when { input.key == "q" } abort: {
+                    cobegin {
+                        strong {
+                            run (Syncs.WaitSeconds, [self.timeout])
+                        }
+                        weak {
+                            `repeat` {
+                                exec {
+                                    let remaining: Int = val.remaining
+                                    ctx.logInfo("\(remaining)s remainging time")
+                                    val.remaining -= 1
+                                }
+                                run (Syncs.WaitSeconds, [1])
+                            }
+                        }
+                        weak {
+                            run (name.QueryColor, [], [val.loc.col])
+                        }
+                        weak {
+                            run (name.QueryPeriod, [], [val.loc.period])
+                        }
+                        weak {
+                            run (name.Blink, [val.col, val.period])
+                        }
+                    }
+                }
+                exec { ctx.logInfo("Demo done - press Stop button to quit!") }
+                await { false }
+            }
+        }
+    }
+}
+
+extension SyncsColor : Equatable {
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        return lhs.red == rhs.red && lhs.green == rhs.green && lhs.blue == rhs.blue
     }
 }
 

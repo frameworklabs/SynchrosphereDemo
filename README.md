@@ -172,7 +172,7 @@ activity (name.Blink, [name.color, name.periodMillis, name.requests]) { val in
 The code in the `defer` block will be called whenever the blink activity is stopped like by preemption in this case. As the code in `defer` must not call `await` or `run`, a call to the request API is done here to set the main LED to black on leaving the blink activity. The request API issues only requests to the robot without waiting for their reply and should only be used in the `defer` environment.  
 Note, that we pass the request object to the activity as imported modules don't have direct access to the context.
 
-#### IO - Query color
+#### IO - Query Color
 
 Let's say we want to query a color from the user before we start blinking the led in that color. For this we create an activty which returns the color chosen from hitting either r, g, or b on the keyboard:
 
@@ -205,7 +205,7 @@ activity (name.Main, []) { val in
 ```
 Again, we assign the returned value to a local variable so that it can be used for calling the blink activity. As the returned value of an activity is optional, we force unwrap it here  - you might use an `if let` or `guard let` instead of course.
 
-#### IO - Concurrent trails
+#### IO - Concurrent Trails
 
 Now, instead of chosing the color only at the start, this demo shows how it can be changed while the led is blinking.
 
@@ -229,14 +229,180 @@ activity (name.Main, []) { val in
 }
 ```
 
-The `cobegin` statement marks the beginning of concurrent trails, which are defined by blocks introduced with the identifiers `strong` or `weak` (`weak` trails will be explained in a subsequent demo).
+The `cobegin` statement marks the beginning of concurrent trails, which are defined by an arbitrary number of blocks introduced with the identifiers `strong` or `weak` (`weak` trails will be explained in a subsequent demo).
 
-In our case, both trails will run concurrently with the first trail querying the color from the user and the second to blink at that color. Data exchange is done by the local variable `col` which is preset to red before `cobegin`.
+In our case, two trails will run concurrently with the first trail querying the color from the user and the second to blink at that color. Data exchange is done by the local variable `col` which is preset to red before `cobegin`.
 When the QueryColor activity returns, it will assign to the `col` variable. This value will be picked up by Blink activity in the second trail during the same step. Within the Blink activity, the new color will not be used right away but only when its control flow reaches the point where the main led is set.
 
-Note, that the order of the trails is important in Pappe. In each step, the first trail will be run before the second trail. This is different in Blech, where the compiler determines the order according to the the data dependencies between the trails. It can also check if the data dependencies are causal and don't introduce cyclic dependencies. In Pappe, its the programmers task to order the trails accordingly and ensure causal dependencies.
+Note, that the order of the trails is important in Pappe. In each step, the first trail will be run before the second trail. This is different in Blech, where the compiler determines the order according to the the data dependencies between the trails. The compiler can also check if the data dependencies are causal and don't introduce cyclic dependencies. In Pappe, it's the programmers task to order the trails accordingly and ensure causal dependencies.
 
 Even though within one step, the trails are processed from top to bottom, when viewed across multiple steps, each trail works concurrently to the others but in a  synchronized way.
+
+#### IO - Streaming Activity
+
+In the last demo, `QueryColor` had to be called repeatedly as it ended every time the user made a color choice. This is actually not necessary, as activities are able to continuously stream values to their callers while they are running:
+
+```Swift
+activity (name.QueryColor, [], [name.col]) { val in
+    `repeat` {
+        exec { ctx.logInfo("Select color by pressing 'r', 'g' or 'b'") }
+        await { input.didPressKey(in: "rgb") }
+        exec {
+            switch input.key {
+            case "r": val.col = SyncsColor.red
+            case "g": val.col = SyncsColor.green
+            case "b": val.col = SyncsColor.blue
+            default: break
+            }
+        }
+    }
+}
+```
+Besides the standard input parameter list, activities can have another list of in-out parameters which follow the input parameter list. Here, we have `col` in the second list and thus defined as a being a streaming (or in-out) parameter. Note that activities can both have streaming parameters as well as a final return value. 
+
+The streaming version of  the `QueryColor` activity has to be called differently now:
+
+```Swift
+activity (name.Main, []) { val in
+    exec { val.col = SyncsColor.red }
+    cobegin {
+        strong {
+            run (name.QueryColor, [], [val.loc.col])
+        }
+        strong {
+            run (name.Blink, [val.col, 1000, ctx.requests])
+        }
+    }
+}
+```
+Arguments corresponding to in-out parameters have to be passed in a second argument list. Also, instead of passing the value of the `col` variable as `val.col` argument we pass the location of the variable with `val.loc.col`, so that the called activity can modify the location external to it. 
+
+#### IO - Weak Preemption
+
+A `cobegin` statement will stop when all its `strong` trails have stopped. When a trail is marked `weak` though, it doesn't participate in the decision when the `cobegin` terminates but rather is preempted when the `strong` trails all have finished. 
+
+This is a second form of preemption - besides the `when ... abort ...` one we already saw. In contrast to the latter one which is named strong preemption, this new form of preemption in a `cobegin` construct is called weak preemption. Whereas strong preemption will happen at the beginning of a step, weak preemption happens at the end - i.e. in a `cobegin`, weak trails will be allowed to complete their step when being preempted.
+
+As an example of this, let's extend the last demo with a timer which ends the blinking after 10 seconds:
+
+```Swift
+activity (name.Main, []) { val in
+    exec { val.col = SyncsColor.red }
+    cobegin {
+        strong {
+            run (Syncs.WaitSeconds, [10])
+        }
+        weak {
+            run (name.QueryColor, [], [val.loc.col])
+        }
+        weak {
+            run (name.Blink, [val.col, 1000, ctx.requests])
+        }
+    }
+}
+```
+Because the indefinite running of `QueryColor` or `Blink` should not prevent the `cobegin` to finish, their trails are marked as `weak`. The `strong` trail with the `WaitSeconds` activity now determines the lifetime of the `coebegin` statement.
+
+#### IO - Final Control
+
+This last IO demo allows the user also to change the blinking period in addition to the color, prints the remaining time to the log window and allows to quit the blinking by user input:
+
+```Swift
+activity (name.Main, []) { val in
+    exec {
+        val.col = SyncsColor.red
+        val.period = 1000
+        val.remaining = self.timeout
+    }
+    when { input.key == "q" } abort: {
+        cobegin {
+            strong {
+                run (Syncs.WaitSeconds, [self.timeout])
+            }
+            weak {
+                `repeat` {
+                    exec {
+                        let remaining: Int = val.remaining
+                        ctx.logInfo("\(remaining)s remainging time")
+                        val.remaining -= 1
+                    }
+                    run (Syncs.WaitSeconds, [1])
+                }
+            }
+            weak {
+                run (name.QueryColor, [], [val.loc.col])
+            }
+            weak {
+                run (name.QueryPeriod, [], [val.loc.period])
+            }
+            weak {
+                run (name.Blink, [val.col, val.period])
+            }
+        }
+    }
+    exec { ctx.logInfo("Demo done - press Stop button to quit!") }
+    await { false }
+}
+```
+
+Also, the blinking itself was improved so that when the color is changed while the led is on, the color changes immediately. When the period changes, the blinking is reset with the new frequency. A short reset to black will indicate the period change when the led is currently on:
+
+```Swift
+activity (name.Blink, [name.col, name.period]) { val in
+    `repeat` {
+        exec { val.lastPeriod = val.period as Int }
+        when { val.period != val.lastPeriod as Int } abort: {
+            `defer` { ctx.requests.setMainLED(to: .black) }
+            `repeat` {
+                cobegin {
+                    strong {
+                        run (Syncs.WaitMilliseconds, [val.period])
+                    }
+                    weak {
+                        `repeat` {
+                            exec { val.lastCol = val.col as SyncsColor }
+                            run (Syncs.SetMainLED, [val.col])
+                            await { val.col != val.lastCol as SyncsColor }
+                        }
+                    }
+                }
+                cobegin {
+                    strong {
+                        run (Syncs.WaitMilliseconds, [val.period])
+                    }
+                    weak {
+                        run (Syncs.SetMainLED, [SyncsColor.black])
+                    }
+                }
+            }
+        }
+    }
+}
+```
+In contrast to Blech, where the `prev` operator is available to get access to the previous values of variables, we have to store and assign the last color and period explicitly in Pappe to detect changes.
+
+Finally, let's look at these lines again:
+```Swift
+cobegin {
+    weak {
+        run (name.QueryColor, [], [val.loc.col])
+    }
+    weak {
+        run (name.QueryPeriod, [], [val.loc.period])
+    }
+    weak {
+        run (name.Blink, [val.col, val.period])
+    }
+}    
+```
+You could also think of this as the definition of a net of communicating components with the output ports of the `QueryColor` and `QueryPeriod` componets connected to corresponding input ports of the `Blink` component.:
+```
+QueryColor >  ____
+                  \____ > Blink
+QueryPeriod > ____/
+```
+
+In contrast to static component models, Pappe - or Blech - can be seen as dynamic component models controlled by a structured imperative program.
 
 #### IO - My Demo
 
