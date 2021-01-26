@@ -166,7 +166,7 @@ let queryColorOnceModule = Module { name in
             default: break
             }
         }
-        exit { val.col }
+        `return` { val.col }
     }
 }
 
@@ -388,12 +388,6 @@ class IOFinalController : DemoController {
                 await { false }
             }
         }
-    }
-}
-
-extension SyncsColor : Equatable {
-    public static func == (lhs: Self, rhs: Self) -> Bool {
-        return lhs.red == rhs.red && lhs.green == rhs.green && lhs.blue == rhs.blue
     }
 }
 

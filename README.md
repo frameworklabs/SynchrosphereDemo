@@ -188,10 +188,10 @@ activity (name.QueryColor, []) { val in
         default: break
         }
     }
-    exit { val.col }
+    `return` { val.col }
 }
 ```
-`await` is used to wait for the exact set of possible keys before they are translated into colors in the `exec` statement. The local variable `col` is used to store the color so that it can be returned in the `exit` statement.
+`await` is used to wait for the exact set of possible keys before they are translated into colors in the `exec` statement. The local variable `col` is used to store the color so that it can be returned in the `return` statement.
 
 When calling an activity that returns, the returned value is passed as the parameter of a closure like this:
 
