@@ -412,7 +412,92 @@ If you like, use this already registered demo to play around with the LEDs on yo
 
 ### Drive Demos
 
-Will contain a list of demos which drives the robot around.
+In these demos we drive the robot around.
+
+#### Drive - Roll Ahead
+
+Let's start with rolling straight ahead at medium speed:
+
+```Swift
+activity (name.Main, []) { val in
+    run (Syncs.SetBackLED, [SyncsBrightness(255)])
+    run (Syncs.Roll, [SyncsSpeed(100), SyncsHeading(0), SyncsDir.forward])
+    await { false }
+}
+```
+First, we turn on the back LED to see the current orientation of the robot. The back led shows in the oppositite direction than the current heading. Then we issue a command to roll the robot forward with speed 100 and heading 0. The `await` statement at the end will prevent the demo from finishing automatically.
+
+You will notice, that the robot will roll for 2 seconds before it stops. This is expected and a standard approach in robotics. To prevent that a robot continues moving when communication between control and actuator is broken, the robots actuator will stop when it doesn't get new commands from its control for a defined duration.
+
+To roll the Sphero for a longer period than those 2 seconds, we thus have to re-issue the command every 2 seconds. As shown in the next demo, there is also a utility activity which does this for us.
+
+#### IO - Roll Ahead and Back
+
+Here, we use the utility activity `RollForSeconds` to roll ahead for 3 seconds, pause for 2 seconds and then roll backwards for 3 seconds again:
+
+```Swift
+`repeat` {
+    run (Syncs.SetBackLED, [SyncsBrightness(255)])
+    run (Syncs.RollForSeconds, [SyncsSpeed(100), SyncsHeading(0), SyncsDir.forward, 3])
+    run (Syncs.WaitSeconds, [2])
+    run (Syncs.RollForSeconds, [SyncsSpeed(100), SyncsHeading(0), SyncsDir.backward, 3])
+    run (Syncs.SetBackLED, [SyncsBrightness(0)])
+    
+    exec { ctx.logInfo("Press q to quit, r to run again") }
+    await { input.didPressKey(in: "rq") }
+} until: { input.key == "q" }
+```
+
+Instead of using `SyncsDir.backward`, when rolling back we could change the heading to 180 degrees. In this case the robot will spin halve around before returning. 
+
+At the end you see the Pappe statement `repeat ... until: ...` which can be used to stop the iteration once a condition becomes true. There is also the `while ... repeat ...` which enters and repeats the iteration only if the condition is true. 
+
+#### Drive - Manual Mode
+
+In this demo the robots speed, heading and direction are controlled manually by pressing up, down, left and right on the keyboard.
+
+The main activity looks like this:
+
+```Swift
+activity (name.Main, []) { val in
+    when { input.key == "q" } abort: {
+        run (Syncs.SetBackLED, [SyncsBrightness(255)])
+        exec {
+            val.speed = SyncsSpeed(0)
+            val.heading = SyncsHeading(0)
+            val.dir = SyncsDir.forward
+        }
+        cobegin {
+            strong {
+                run (name.ObtainInput, [], [val.loc.speed, val.loc.heading, val.loc.dir])
+            }
+            strong {
+                nowAndEvery { ctx.clock.tick } do: {
+                    run (Syncs.Roll, [val.speed, val.heading, val.dir])
+                }
+            }
+        }
+    }
+}
+```
+Guarded by a preemption when the user presses "q", the body of the activity consists of two concurrent trails - one for obtaining the input from the user and the other for issuing driving commands to the robot.
+
+`nowAndEvery` is an (unofficial - as it is not a Blech construct) shorthand for a `repeat` loop with an `await` at the end - so in our case it's equivalent to:
+```Swift
+`repeat` {
+    run (Syncs.Roll, [val.speed, val.heading, val.dir])
+    await { ctx.clock.tick }
+}
+```
+(There is also a variant called `every` which has the `await` at the beginning of the loop)
+
+Independent of the style used,  with `ctx.clock.tick` we issue roll commands to the robot at the frequency of the clock - which is configurable via the `tickFrequency` property of `SyncsControllerConfig` which is 10 Hz by default. This is short enough so that we don't need to use the `RollForSeconds` command here.
+
+#### Drive - My Demo
+
+This is a playground demo for your Drive experiments.
+
+If you like, use this already registered demo to drive around your Sphero robot.
 
 ### Sensor Demos
 

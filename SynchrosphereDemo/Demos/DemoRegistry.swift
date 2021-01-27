@@ -18,6 +18,10 @@ enum Demo : String, CaseIterable, Identifiable {
     case ioWeakPreemption = "IO - Weak Preemption"
     case ioFinalControl = "IO - Final Control"
     case ioMyDemo = "IO - My Demo"
+    case driveRollAhead = "Drive - Roll Ahead"
+    case driveRollAheadAndBack = "Drive - Roll Ahead and Back"
+    case driveManualMode = "Drive - Manual Mode"
+    case driveMyDemo = "Drive - My Demo"
 
     var id: Demo {
         return self
@@ -67,6 +71,14 @@ extension Demo {
             return .controller(IOFinalController(timeout: 30))
         case .ioMyDemo:
             return .function(ioMyDemoFunc)
+        case .driveRollAhead:
+            return .function(driveRollAheadFunc)
+        case .driveRollAheadAndBack:
+            return .function(driveRollAheadAndBackFunc)
+        case .driveManualMode:
+            return .function(driveManualModeFunc)
+        case .driveMyDemo:
+            return .function(driveMyDemoFunc)
         }
     }
 }
