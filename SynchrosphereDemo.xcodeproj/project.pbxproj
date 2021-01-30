@@ -94,9 +94,9 @@
 			isa = PBXGroup;
 			children = (
 				68E8BD7C25B6533400B41C43 /* DemoRegistry.swift */,
-				68E8BD7D25B6533400B41C43 /* IODemos.swift */,
-				68E8BD8A25B668A800B41C43 /* DriveDemos.swift */,
 				68E8BD8E25B668FE00B41C43 /* SensorDemos.swift */,
+				68E8BD8A25B668A800B41C43 /* DriveDemos.swift */,
+				68E8BD7D25B6533400B41C43 /* IODemos.swift */,
 				68E8BD7125B6530000B41C43 /* DemoAPI.swift */,
 			);
 			path = Demos;

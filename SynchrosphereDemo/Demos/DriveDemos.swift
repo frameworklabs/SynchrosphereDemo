@@ -40,75 +40,187 @@ func driveRollAheadAndBackFunc(_ engine: SyncsEngine, _ config: SyncsControllerC
 func driveManualModeFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ input: Input) -> SyncsController {
     engine.makeController(for: config) { name, ctx in
         
-        activity (name.ObtainInput, [], [name.speed, name.heading, name.dir]) { val in
+        activity (name.QueryInput, [], [name.speed, name.heading, name.dir]) { val in
             every { input.didPressKey } do: {
                 exec {
-                    let currentSpeed: SyncsSpeed = val.speed
-                    var currentDir: SyncsDir = val.dir
-                    let currentHeading: SyncsHeading = val.heading
+                    let speed: SyncsSpeed = val.speed
+                    var dir: SyncsDir = val.dir
+                    let heading: SyncsHeading = val.heading
                     
-                    var speed: Int = Int(currentSpeed)
-                    if currentDir == .backward {
-                        speed = -speed
+                    var intSpeed: Int = Int(speed)
+                    if dir == .backward {
+                        intSpeed = -intSpeed
                     }
-                    var heading: Int = Int(currentHeading)
+                    var intHeading: Int = Int(heading)
                     
                     switch Int(input.key.utf16.first!) {
                     case NSUpArrowFunctionKey:
-                        speed += 10
+                        intSpeed += 10
                     case NSDownArrowFunctionKey:
-                        speed -= 10
+                        intSpeed -= 10
                     case NSLeftArrowFunctionKey:
-                        heading -= 10
+                        intHeading -= 10
                     case NSRightArrowFunctionKey:
-                        heading += 10
+                        intHeading += 10
                     default:
                         break
                     }
 
-                    if speed > 250 {
-                        speed = 250
-                        currentDir = .forward
-                    } else if speed < -250 {
-                        speed = 250
-                        currentDir = .backward
-                    } else if speed < 0 {
-                        speed = -speed
-                        currentDir = .backward
-                    } else {
-                        currentDir = .forward
+                    if intSpeed > 250 {
+                        intSpeed = 250
+                        dir = .forward
+                    } else if intSpeed < -250 {
+                        intSpeed = 250
+                        dir = .backward
+                    } else if intSpeed >= 0 {
+                        dir = .forward
+                    } else { // intSpeed < 0
+                        intSpeed = -intSpeed
+                        dir = .backward
+                        dir = .forward
                     }
-                    val.speed = SyncsSpeed(speed)
-                    val.dir = currentDir
+                    val.speed = SyncsSpeed(intSpeed)
+                    val.dir = dir
                     
-                    if heading < 0 {
-                        heading += 360
+                    if intHeading < 0 {
+                        intHeading += 360
+                    } else if intHeading >= 360 {
+                        intHeading -= 360
                     }
-                    if heading >= 360 {
-                        heading -= 360
-                    }
-                    val.heading = SyncsHeading(heading)
+                    val.heading = SyncsHeading(intHeading)
                 }
             }
         }
         
         activity (name.Main, []) { val in
-            when { input.key == "q" } abort: {
-                run (Syncs.SetBackLED, [SyncsBrightness(255)])
-                exec {
-                    val.speed = SyncsSpeed(0)
-                    val.heading = SyncsHeading(0)
-                    val.dir = SyncsDir.forward
+            run (Syncs.SetBackLED, [SyncsBrightness(255)])
+            exec {
+                val.speed = SyncsSpeed(0)
+                val.heading = SyncsHeading(0)
+                val.dir = SyncsDir.forward
+            }
+            cobegin {
+                strong {
+                    run (name.QueryInput, [], [val.loc.speed, val.loc.heading, val.loc.dir])
                 }
-                cobegin {
-                    strong {
-                        run (name.ObtainInput, [], [val.loc.speed, val.loc.heading, val.loc.dir])
+                strong {
+                    nowAndEvery { ctx.clock.tick } do: {
+                        run (Syncs.Roll, [val.speed, val.heading, val.dir])
                     }
-                    strong {
-                        nowAndEvery { ctx.clock.tick } do: {
-                            run (Syncs.Roll, [val.speed, val.heading, val.dir])
+                }
+            }
+        }
+    }
+}
+
+/// Drive robot manually by keyboard.
+func driveNormalizedManualModeFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ input: Input) -> SyncsController {
+    
+    func convertSpeedAndHeading(_ val: Ctx) {
+        let speed: Float = val.speed
+        var heading: Float = val.heading
+        
+        if speed >= 0 {
+            val.syncsSpeed = SyncsSpeed(speed * 255)
+            val.syncsDir = SyncsDir.forward
+        } else {
+            val.syncsSpeed = SyncsSpeed(-speed * 255)
+            val.syncsDir = SyncsDir.backward
+        }
+        
+        if heading > 0 {
+            while heading > 2 * Float.pi {
+                heading -= 2 * .pi
+            }
+            let degrees: Float = heading / (2 * .pi) * 360
+            val.syncsHeading = SyncsHeading(360 - degrees)
+        } else { // heading <= 0
+            while heading < -2 * Float.pi {
+                heading += 2 * .pi
+            }
+            let degrees: Float = -heading / (2 * .pi) * 360
+            val.syncsHeading = SyncsHeading(degrees)
+        }
+    }
+    
+    return engine.makeController(for: config) { name, ctx in
+        
+        activity (name.Controller, [], [name.speed, name.heading]) { val in
+            every { input.didPressKey } do: {
+                exec {
+                    var speed: Float = val.speed
+                    var heading: Float = val.heading
+                                
+                    let steps: Float = 20
+                    let speedIncrement: Float = 1 / steps
+                    let headingIncrement: Float = .pi / steps
+                    
+                    switch Int(input.key.utf16.first!) {
+                    case NSUpArrowFunctionKey:
+                        speed += speedIncrement
+                    case NSDownArrowFunctionKey:
+                        speed -= speedIncrement
+                    case NSLeftArrowFunctionKey:
+                        heading += headingIncrement
+                    case NSRightArrowFunctionKey:
+                        heading -= headingIncrement
+                    default:
+                        break
+                    }
+                    
+                    val.speed = max(-1.0, min(1.0, speed))
+                    val.heading = heading
+                }
+            }
+        }
+        
+        activity (name.RollController, [name.speed, name.heading, name.dir]) { val in
+            when {  val.prevSpeed != val.speed as SyncsSpeed
+                    || val.prevHeading != val.heading as SyncsHeading
+                    || val.prevDir != val.dir as SyncsDir } reset: {
+                exec {
+                    val.prevSpeed = val.speed as SyncsSpeed
+                    val.prevHeading = val.heading as SyncsHeading
+                    val.prevDir = val.dir as SyncsDir
+                }
+                `repeat` {
+                    run (Syncs.Roll, [val.speed, val.heading, val.dir])
+                    `if` { val.speed as SyncsSpeed == 0 } then: {
+                        await { false }
+                    } else: {
+                        run (Syncs.WaitSeconds, [1])
+                    }
+                }
+            }
+        }
+        
+        activity (name.Actuator, [name.speed, name.heading]) { val in
+            cobegin {
+                strong {
+                    nowAndEvery { ctx.clock.tick } do: {
+                        exec {
+                            convertSpeedAndHeading(val)
                         }
                     }
+                }
+                strong {
+                    run (name.RollController, [val.syncsSpeed, val.syncsHeading, val.syncsDir])
+                }
+            }
+        }
+        
+        activity (name.Main, []) { val in
+            run (Syncs.SetBackLED, [SyncsBrightness(255)])
+            exec {
+                val.speed = Float(0)
+                val.heading = Float(0)
+            }
+            cobegin {
+                strong {
+                    run (name.Controller, [], [val.loc.speed, val.loc.heading])
+                }
+                strong {
+                    run (name.Actuator, [val.speed, val.heading])
                 }
             }
         }

@@ -436,16 +436,18 @@ To roll the Sphero for a longer period than those 2 seconds, we thus have to re-
 Here, we use the utility activity `RollForSeconds` to roll ahead for 3 seconds, pause for 2 seconds and then roll backwards for 3 seconds again:
 
 ```Swift
-`repeat` {
-    run (Syncs.SetBackLED, [SyncsBrightness(255)])
-    run (Syncs.RollForSeconds, [SyncsSpeed(100), SyncsHeading(0), SyncsDir.forward, 3])
-    run (Syncs.WaitSeconds, [2])
-    run (Syncs.RollForSeconds, [SyncsSpeed(100), SyncsHeading(0), SyncsDir.backward, 3])
-    run (Syncs.SetBackLED, [SyncsBrightness(0)])
-    
-    exec { ctx.logInfo("Press q to quit, r to run again") }
-    await { input.didPressKey(in: "rq") }
-} until: { input.key == "q" }
+activity (name.Main, []) { val in
+    `repeat` {
+        run (Syncs.SetBackLED, [SyncsBrightness(255)])
+        run (Syncs.RollForSeconds, [SyncsSpeed(100), SyncsHeading(0), SyncsDir.forward, 3])
+        run (Syncs.WaitSeconds, [2])
+        run (Syncs.RollForSeconds, [SyncsSpeed(100), SyncsHeading(0), SyncsDir.backward, 3])
+        run (Syncs.SetBackLED, [SyncsBrightness(0)])
+        
+        exec { ctx.logInfo("Press q to quit, r to run again") }
+        await { input.didPressKey(in: "rq") }
+    } until: { input.key == "q" }
+}
 ```
 
 Instead of using `SyncsDir.backward`, when rolling back we could change the heading to 180 degrees. In this case the robot will spin halve around before returning. 
@@ -460,27 +462,25 @@ The main activity looks like this:
 
 ```Swift
 activity (name.Main, []) { val in
-    when { input.key == "q" } abort: {
-        run (Syncs.SetBackLED, [SyncsBrightness(255)])
-        exec {
-            val.speed = SyncsSpeed(0)
-            val.heading = SyncsHeading(0)
-            val.dir = SyncsDir.forward
+    run (Syncs.SetBackLED, [SyncsBrightness(255)])
+    exec {
+        val.speed = SyncsSpeed(0)
+        val.heading = SyncsHeading(0)
+        val.dir = SyncsDir.forward
+    }
+    cobegin {
+        strong {
+            run (name.QueryInput, [], [val.loc.speed, val.loc.heading, val.loc.dir])
         }
-        cobegin {
-            strong {
-                run (name.ObtainInput, [], [val.loc.speed, val.loc.heading, val.loc.dir])
-            }
-            strong {
-                nowAndEvery { ctx.clock.tick } do: {
-                    run (Syncs.Roll, [val.speed, val.heading, val.dir])
-                }
+        strong {
+            nowAndEvery { ctx.clock.tick } do: {
+                run (Syncs.Roll, [val.speed, val.heading, val.dir])
             }
         }
     }
 }
 ```
-Guarded by a preemption when the user presses "q", the body of the activity consists of two concurrent trails - one for obtaining the input from the user and the other for issuing driving commands to the robot.
+The body of the activity consists of two concurrent trails - one for obtaining the input from the user and the other for issuing driving commands to the robot.
 
 `nowAndEvery` is an (unofficial - as it is not a Blech construct) shorthand for a `repeat` loop with an `await` at the end - so in our case it's equivalent to:
 ```Swift
@@ -492,6 +492,77 @@ Guarded by a preemption when the user presses "q", the body of the activity cons
 (There is also a variant called `every` which has the `await` at the beginning of the loop)
 
 Independent of the style used,  with `ctx.clock.tick` we issue roll commands to the robot at the frequency of the clock - which is configurable via the `tickFrequency` property of `SyncsControllerConfig` which is 10 Hz by default. This is short enough so that we don't need to use the `RollForSeconds` command here.
+
+`QueryInput` is structured equivalently to the way we continously queried the user for a color or period in the IO Demos. The only complication here is that the `Roll` activities input parameter domains are very restricted - the heading has to be given in unsigned integer degrees from 0 to 359. The next demo will simplify things in this regard.
+
+#### Drive - Normalized Manual Mode
+
+To simplify calculations, we want to work with normalized speed and heading values instead of the lower level encoding needed by the robot. A new activity called `Actuator` will take normalized inputs and translate them to the domains required by `Roll`. Also, in the previous demo, we issued a roll command every tick - even if the speed or heading did not change - so we optimize this too. Here is the main activity which connects the `Controller` component to the `Acttuator`  component:
+
+```Swift
+activity (name.Main, []) { val in
+    run (Syncs.SetBackLED, [SyncsBrightness(255)])
+    exec {
+        val.speed = Float(0)
+        val.heading = Float(0)
+    }
+    cobegin {
+        strong {
+            run (name.Controller, [], [val.loc.speed, val.loc.heading])
+        }
+        strong {
+            run (name.Actuator, [val.speed, val.heading])
+        }
+    }
+}
+```
+The `Controller` activity corresponds to the previous `QueryInput` activity but streams speed and heading as normalized values now.
+
+`Actuator` does two things concurrently:
+
+* Convert the normalized speed and heading floats to corresponding Syncs values at the rate of the clock. Note, that we moved the conversion logic to a separate function.
+* Run the `RollController`
+
+```Swift
+activity (name.Actuator, [name.speed, name.heading]) { val in
+    cobegin {
+        strong {
+            nowAndEvery { ctx.clock.tick } do: {
+                exec {
+                    convertSpeedAndHeading(val)
+                }
+            }
+        }
+        strong {
+            run (name.RollController, [val.syncsSpeed, val.syncsHeading, val.syncsDir])
+        }
+    }
+}
+```
+
+Finally, the `RollController` takes care of calling `Syncs.Roll` when input values have changed or a second has elapsed to keep the robot rolling if no change is detected. If the speed is 0 we don't have to re-issue the roll command, so we wait a second conditionally on the speed with the help of the `if ... then: ... else: ...` statement:
+
+```Swift
+activity (name.RollController, [name.speed, name.heading, name.dir]) { val in
+    when {  val.prevSpeed != val.speed as SyncsSpeed
+            || val.prevHeading != val.heading as SyncsHeading
+            || val.prevDir != val.dir as SyncsDir } reset: {
+        exec {
+            val.prevSpeed = val.speed as SyncsSpeed
+            val.prevHeading = val.heading as SyncsHeading
+            val.prevDir = val.dir as SyncsDir
+        }
+        `repeat` {
+            run (Syncs.Roll, [val.speed, val.heading, val.dir])
+            `if` { val.speed as SyncsSpeed == 0 } then: {
+                await { false }
+            } else: {
+                run (Syncs.WaitSeconds, [1])
+            }
+        }
+    }
+}
+```
 
 #### Drive - My Demo
 
