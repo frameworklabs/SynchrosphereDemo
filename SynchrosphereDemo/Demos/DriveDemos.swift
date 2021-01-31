@@ -113,102 +113,104 @@ func driveManualModeFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig,
     }
 }
 
-/// Drive robot manually by keyboard.
-func driveNormalizedManualModeFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ input: Input) -> SyncsController {
+/// Module containing the activity to manually control (generate) speed and heading  as normalized values.
+let manualControllerModule = Module { name in
     
-    func convertSpeedAndHeading(_ val: Ctx) {
-        let speed: Float = val.speed
-        var heading: Float = val.heading
-        
-        if speed >= 0 {
-            val.syncsSpeed = SyncsSpeed(speed * 255)
-            val.syncsDir = SyncsDir.forward
-        } else {
-            val.syncsSpeed = SyncsSpeed(-speed * 255)
-            val.syncsDir = SyncsDir.backward
+    activity (name.ManualController, [name.input], [name.speed, name.heading]) { val in
+        every { (val.input as Input).didPressKey } do: {
+            exec {
+                let input: Input = val.input
+                var speed: Float = val.speed
+                var heading: Float = val.heading
+                            
+                let steps: Float = 20
+                let speedIncrement: Float = 1 / steps
+                let headingIncrement: Float = .pi / steps
+                
+                switch Int(input.key.utf16.first!) {
+                case NSUpArrowFunctionKey:
+                    speed += speedIncrement
+                case NSDownArrowFunctionKey:
+                    speed -= speedIncrement
+                case NSLeftArrowFunctionKey:
+                    heading += headingIncrement
+                case NSRightArrowFunctionKey:
+                    heading -= headingIncrement
+                default:
+                    break
+                }
+                
+                val.speed = max(-1.0, min(1.0, speed))
+                val.heading = heading
+            }
         }
-        
-        if heading > 0 {
-            while heading > 2 * Float.pi {
-                heading -= 2 * .pi
+    }
+}
+
+/// Module containing activities to roll the robot with normalized speed and heading values.
+let rollControllerModule = Module { name in
+    
+    activity (name.SpeedAndHeadingConverter, [name.normSpeed, name.normHeading], [name.speed, name.heading, name.dir]) { val in
+        nowAndEvery { true } do: {
+            exec {
+                let normSpeed: Float = val.normSpeed
+                var normHeading: Float = val.normHeading
+                
+                if normSpeed >= 0 {
+                    val.speed = SyncsSpeed(normSpeed * 255)
+                    val.dir = SyncsDir.forward
+                } else {
+                    val.speed = SyncsSpeed(-normSpeed * 255)
+                    val.dir = SyncsDir.backward
+                }
+                
+                if normHeading > 0 {
+                    while normHeading > 2 * Float.pi {
+                        normHeading -= 2 * .pi
+                    }
+                    let degrees: Float = normHeading / (2 * .pi) * 360
+                    val.heading = SyncsHeading(360 - degrees)
+                } else { // heading <= 0
+                    while normHeading < -2 * Float.pi {
+                        normHeading += 2 * .pi
+                    }
+                    let degrees: Float = -normHeading / (2 * .pi) * 360
+                    val.heading = SyncsHeading(degrees)
+                }
             }
-            let degrees: Float = heading / (2 * .pi) * 360
-            val.syncsHeading = SyncsHeading(360 - degrees)
-        } else { // heading <= 0
-            while heading < -2 * Float.pi {
-                heading += 2 * .pi
-            }
-            let degrees: Float = -heading / (2 * .pi) * 360
-            val.syncsHeading = SyncsHeading(degrees)
         }
     }
     
+    activity (name.RollController, [name.speed, name.heading, name.dir, name.requests]) { val in
+        `defer` { (val.requests as SyncsRequests).stopRoll(towards: val.heading) }
+        when {  val.prevSpeed != val.speed as SyncsSpeed
+                || val.prevHeading != val.heading as SyncsHeading
+                || val.prevDir != val.dir as SyncsDir } reset: {
+            exec {
+                val.prevSpeed = val.speed as SyncsSpeed
+                val.prevHeading = val.heading as SyncsHeading
+                val.prevDir = val.dir as SyncsDir
+            }
+            `repeat` {
+                run (Syncs.Roll, [val.speed, val.heading, val.dir])
+                `if` { val.speed as SyncsSpeed == 0 } then: {
+                    await { false }
+                } else: {
+                    run (Syncs.WaitSeconds, [1])
+                }
+            }
+        }
+    }
+}
+
+/// Drive robot manually by keyboard.
+func driveNormalizedManualModeFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ input: Input) -> SyncsController {
+    
+    var config = config
+    config.imports = [manualControllerModule, rollControllerModule]
+    
     return engine.makeController(for: config) { name, ctx in
-        
-        activity (name.Controller, [], [name.speed, name.heading]) { val in
-            every { input.didPressKey } do: {
-                exec {
-                    var speed: Float = val.speed
-                    var heading: Float = val.heading
-                                
-                    let steps: Float = 20
-                    let speedIncrement: Float = 1 / steps
-                    let headingIncrement: Float = .pi / steps
                     
-                    switch Int(input.key.utf16.first!) {
-                    case NSUpArrowFunctionKey:
-                        speed += speedIncrement
-                    case NSDownArrowFunctionKey:
-                        speed -= speedIncrement
-                    case NSLeftArrowFunctionKey:
-                        heading += headingIncrement
-                    case NSRightArrowFunctionKey:
-                        heading -= headingIncrement
-                    default:
-                        break
-                    }
-                    
-                    val.speed = max(-1.0, min(1.0, speed))
-                    val.heading = heading
-                }
-            }
-        }
-        
-        activity (name.RollController, [name.speed, name.heading, name.dir]) { val in
-            when {  val.prevSpeed != val.speed as SyncsSpeed
-                    || val.prevHeading != val.heading as SyncsHeading
-                    || val.prevDir != val.dir as SyncsDir } reset: {
-                exec {
-                    val.prevSpeed = val.speed as SyncsSpeed
-                    val.prevHeading = val.heading as SyncsHeading
-                    val.prevDir = val.dir as SyncsDir
-                }
-                `repeat` {
-                    run (Syncs.Roll, [val.speed, val.heading, val.dir])
-                    `if` { val.speed as SyncsSpeed == 0 } then: {
-                        await { false }
-                    } else: {
-                        run (Syncs.WaitSeconds, [1])
-                    }
-                }
-            }
-        }
-        
-        activity (name.Actuator, [name.speed, name.heading]) { val in
-            cobegin {
-                strong {
-                    nowAndEvery { ctx.clock.tick } do: {
-                        exec {
-                            convertSpeedAndHeading(val)
-                        }
-                    }
-                }
-                strong {
-                    run (name.RollController, [val.syncsSpeed, val.syncsHeading, val.syncsDir])
-                }
-            }
-        }
-        
         activity (name.Main, []) { val in
             run (Syncs.SetBackLED, [SyncsBrightness(255)])
             exec {
@@ -217,10 +219,26 @@ func driveNormalizedManualModeFunc(_ engine: SyncsEngine, _ config: SyncsControl
             }
             cobegin {
                 strong {
-                    run (name.Controller, [], [val.loc.speed, val.loc.heading])
+                    run (name.ManualController, [input], [val.loc.speed, val.loc.heading])
                 }
                 strong {
                     run (name.Actuator, [val.speed, val.heading])
+                }
+            }
+        }
+        
+        activity (name.Actuator, [name.speed, name.heading]) { val in
+            exec {
+                val.syncsSpeed = SyncsSpeed(0)
+                val.syncsHeading = SyncsHeading(0)
+                val.syncsDir = SyncsDir.forward
+            }
+            cobegin {
+                strong {
+                    run (name.SpeedAndHeadingConverter, [val.speed, val.heading], [val.loc.syncsSpeed, val.loc.syncsHeading, val.loc.syncsDir])
+                }
+                strong {
+                    run (name.RollController, [val.syncsSpeed, val.syncsHeading, val.syncsDir, ctx.requests])
                 }
             }
         }

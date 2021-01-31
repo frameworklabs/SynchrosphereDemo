@@ -431,7 +431,7 @@ You will notice, that the robot will roll for 2 seconds before it stops. This is
 
 To roll the Sphero for a longer period than those 2 seconds, we thus have to re-issue the command every 2 seconds. As shown in the next demo, there is also a utility activity which does this for us.
 
-#### IO - Roll Ahead and Back
+#### Drive - Roll Ahead and Back
 
 Here, we use the utility activity `RollForSeconds` to roll ahead for 3 seconds, pause for 2 seconds and then roll backwards for 3 seconds again:
 
@@ -497,7 +497,9 @@ Independent of the style used,  with `ctx.clock.tick` we issue roll commands to 
 
 #### Drive - Normalized Manual Mode
 
-To simplify calculations, we want to work with normalized speed and heading values instead of the lower level encoding needed by the robot. A new activity called `Actuator` will take normalized inputs and translate them to the domains required by `Roll`. Also, in the previous demo, we issued a roll command every tick - even if the speed or heading did not change - so we optimize this too. Here is the main activity which connects the `Controller` component to the `Acttuator`  component:
+To simplify calculations, we want to work with normalized speed and heading values instead of the lower-level encoding needed by the robot. A new activity called `Actuator` will take normalized inputs and translate them to the domains required by `Roll`. Also - in the previous demo - we issued a roll command every tick even if the speed or heading did not change, so let's change that too. 
+
+Here is the main activity which connects the `ManualController` component to the `Actuator`  component:
 
 ```Swift
 activity (name.Main, []) { val in
@@ -508,7 +510,7 @@ activity (name.Main, []) { val in
     }
     cobegin {
         strong {
-            run (name.Controller, [], [val.loc.speed, val.loc.heading])
+            run (name.ManualController, [], [val.loc.speed, val.loc.heading])
         }
         strong {
             run (name.Actuator, [val.speed, val.heading])
@@ -516,34 +518,42 @@ activity (name.Main, []) { val in
     }
 }
 ```
-The `Controller` activity corresponds to the previous `QueryInput` activity but streams speed and heading as normalized values now.
+The `ManualController` activity corresponds to the previous `QueryInput` activity but streams speed and heading as normalized values now.
 
 `Actuator` does two things concurrently:
 
-* Convert the normalized speed and heading floats to corresponding Syncs values at the rate of the clock. Note, that we moved the conversion logic to a separate function.
-* Run the `RollController`
+* Convert the normalized speed and heading floats to corresponding Syncs values at the rate of the clock - done by  `SpeedAndHeadingConverter`. 
+* Call `Syncs.Roll` but only when values have changed - done by `RollController`.
 
 ```Swift
 activity (name.Actuator, [name.speed, name.heading]) { val in
+    exec {
+        val.syncsSpeed = SyncsSpeed(0)
+        val.syncsHeading = SyncsHeading(0)
+        val.syncsDir = SyncsDir.forward
+    }
     cobegin {
         strong {
-            nowAndEvery { ctx.clock.tick } do: {
-                exec {
-                    convertSpeedAndHeading(val)
-                }
-            }
+            run (name.SpeedAndHeadingConverter, [val.speed, val.heading], [val.loc.syncsSpeed, val.loc.syncsHeading, val.loc.syncsDir])
         }
         strong {
-            run (name.RollController, [val.syncsSpeed, val.syncsHeading, val.syncsDir])
+            run (name.RollController, [val.syncsSpeed, val.syncsHeading, val.syncsDir, ctx.requests])
         }
     }
 }
 ```
 
-Finally, the `RollController` takes care of calling `Syncs.Roll` when input values have changed or a second has elapsed to keep the robot rolling if no change is detected. If the speed is 0 we don't have to re-issue the roll command, so we wait a second conditionally on the speed with the help of the `if ... then: ... else: ...` statement:
+This brings us to this component view for this demo (whith square brackets indicating the Actuator Sub-Component):
+
+```
+ManuallController > ---- > [ SpeedAndHeaddingConverter > ---- > RollController ]
+```
+
+The `RollController` takes care of calling `Syncs.Roll` when input values have changed or a second has elapsed to keep the robot rolling if no change is detected. If the speed is 0 we don't have to re-issue the roll command periodically and wait instead indefinitely until the input values change. The different code paths are expressed with the  `if ... then: ... else: ...` statement:
 
 ```Swift
 activity (name.RollController, [name.speed, name.heading, name.dir]) { val in
+    `defer` { ctx.requests.stopRoll(towards: val.heading) }
     when {  val.prevSpeed != val.speed as SyncsSpeed
             || val.prevHeading != val.heading as SyncsHeading
             || val.prevDir != val.dir as SyncsDir } reset: {
