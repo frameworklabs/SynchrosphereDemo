@@ -322,30 +322,28 @@ class IOFinalController : DemoController {
             }
             
             activity (name.Blink, [name.col, name.period]) { val in
-                `repeat` {
-                    exec { val.lastPeriod = val.period as Int }
-                    when { val.period != val.lastPeriod as Int } abort: {
-                        `defer` { ctx.requests.setMainLED(to: .black) }
-                        `repeat` {
-                            cobegin {
-                                strong {
-                                    run (Syncs.WaitMilliseconds, [val.period])
-                                }
-                                weak {
-                                    `repeat` {
-                                        exec { val.lastCol = val.col as SyncsColor }
-                                        run (Syncs.SetMainLED, [val.col])
-                                        await { val.col != val.lastCol as SyncsColor }
-                                    }
+                when { val.period != val.prevPeriod as Int } reset: {
+                    exec { val.prevPeriod = val.period as Int }
+                    `defer` { ctx.requests.setMainLED(to: .black) }
+                    `repeat` {
+                        cobegin {
+                            strong {
+                                run (Syncs.WaitMilliseconds, [val.period])
+                            }
+                            weak {
+                                `repeat` {
+                                    exec { val.lastCol = val.col as SyncsColor }
+                                    run (Syncs.SetMainLED, [val.col])
+                                    await { val.col != val.lastCol as SyncsColor }
                                 }
                             }
-                            cobegin {
-                                strong {
-                                    run (Syncs.WaitMilliseconds, [val.period])
-                                }
-                                weak {
-                                    run (Syncs.SetMainLED, [SyncsColor.black])
-                                }
+                        }
+                        cobegin {
+                            strong {
+                                run (Syncs.WaitMilliseconds, [val.period])
+                            }
+                            weak {
+                                run (Syncs.SetMainLED, [SyncsColor.black])
                             }
                         }
                     }

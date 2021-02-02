@@ -349,37 +349,37 @@ Also, the blinking itself was improved so that when the color is changed while t
 
 ```Swift
 activity (name.Blink, [name.col, name.period]) { val in
-    `repeat` {
-        exec { val.lastPeriod = val.period as Int }
-        when { val.period != val.lastPeriod as Int } abort: {
-            `defer` { ctx.requests.setMainLED(to: .black) }
-            `repeat` {
-                cobegin {
-                    strong {
-                        run (Syncs.WaitMilliseconds, [val.period])
-                    }
-                    weak {
-                        `repeat` {
-                            exec { val.lastCol = val.col as SyncsColor }
-                            run (Syncs.SetMainLED, [val.col])
-                            await { val.col != val.lastCol as SyncsColor }
-                        }
+    when { val.period != val.prevPeriod as Int } reset: {
+        exec { val.prevPeriod = val.period as Int }
+        `defer` { ctx.requests.setMainLED(to: .black) }
+        `repeat` {
+            cobegin {
+                strong {
+                    run (Syncs.WaitMilliseconds, [val.period])
+                }
+                weak {
+                    `repeat` {
+                        exec { val.lastCol = val.col as SyncsColor }
+                        run (Syncs.SetMainLED, [val.col])
+                        await { val.col != val.lastCol as SyncsColor }
                     }
                 }
-                cobegin {
-                    strong {
-                        run (Syncs.WaitMilliseconds, [val.period])
-                    }
-                    weak {
-                        run (Syncs.SetMainLED, [SyncsColor.black])
-                    }
+            }
+            cobegin {
+                strong {
+                    run (Syncs.WaitMilliseconds, [val.period])
+                }
+                weak {
+                    run (Syncs.SetMainLED, [SyncsColor.black])
                 }
             }
         }
     }
 }
 ```
-In contrast to Blech, where the `prev` operator is available to get access to the previous values of variables, we have to store and assign the last color and period explicitly in Pappe to detect changes.
+Note the use of the `when ... reset: ...` statement. This is similar to the `when ... abort: ...` construct we already saw but instead of aborting the body when the preemption condition becomes `true`, this variant will repeat it instead. One important point with both constructs is that the condition is *not* checked when it enters the statement for the first time but only after the first direct or indirect `await`. This is because we have a strong preemption construct here which states that it is the first thing which is checked in a step. But as some other statements might occur before `when` is entered the first time, it can't guarantee this promise.
+
+For the preemption condition we compare the current period to the previous one. In contrast to Blech, where the `prev` operator is available to get access to the previous values of variables, we have to store the previous period explicitly in Pappe to detect changes.
 
 Finally, let's look at these lines again:
 ```Swift
@@ -522,7 +522,7 @@ The `ManualController` activity corresponds to the previous `QueryInput` activit
 
 `Actuator` does two things concurrently:
 
-* Convert the normalized speed and heading floats to corresponding Syncs values at the rate of the clock - done by  `SpeedAndHeadingConverter`. 
+* Convert the normalized speed and heading floats to corresponding Syncs values - done by  `SpeedAndHeadingConverter`. 
 * Call `Syncs.Roll` but only when values have changed - done by `RollController`.
 
 ```Swift
@@ -537,13 +537,13 @@ activity (name.Actuator, [name.speed, name.heading]) { val in
             run (name.SpeedAndHeadingConverter, [val.speed, val.heading], [val.loc.syncsSpeed, val.loc.syncsHeading, val.loc.syncsDir])
         }
         strong {
-            run (name.RollController, [val.syncsSpeed, val.syncsHeading, val.syncsDir, ctx.requests])
+            run (name.RollController, [val.syncsSpeed, val.syncsHeading, val.syncsDir])
         }
     }
 }
 ```
 
-This brings us to this component view for this demo (whith square brackets indicating the Actuator Sub-Component):
+This brings us to this component view for the demo (whith square brackets indicating the Actuator Sub-Component):
 
 ```
 ManuallController > ---- > [ SpeedAndHeaddingConverter > ---- > RollController ]
@@ -568,6 +568,84 @@ activity (name.RollController, [name.speed, name.heading, name.dir]) { val in
                 await { false }
             } else: {
                 run (Syncs.WaitSeconds, [1])
+            }
+        }
+    }
+}
+```
+
+#### Drive - Roll and Blink
+
+Let's extend the last demo by having the robot blink while it is driving. When it is driving forward, it should blink green, when driving backward red. The blinking frequency should increase on higher speeds and if the robot does not move, the led should stay white instead without blinking.
+
+The only change needed is to extend the `Actuator` activity with another concurrent trail which runs the `BlinkController`:
+
+```Swift
+activity (name.Actuator, [name.speed, name.heading]) { val in
+    exec {
+        val.syncsSpeed = SyncsSpeed(0)
+        val.syncsHeading = SyncsHeading(0)
+        val.syncsDir = SyncsDir.forward
+    }
+    cobegin {
+        strong {
+            run (name.SpeedAndHeadingConverter, [val.speed, val.heading], [val.loc.syncsSpeed, val.loc.syncsHeading, val.loc.syncsDir])
+        }
+        strong {
+            run (name.RollController, [val.syncsSpeed, val.syncsHeading, val.syncsDir, ctx.requests])
+        }
+        strong {
+            run (name.BlinkController, [val.speed, val.heading, ctx.requests])
+        }
+    }
+}
+```
+
+So, the rolling is extended with the aspect of blinking here. The synchronous programming model allows this kind of Aspect-oriented prrogramming (AOP) as the synchronization points pose as ubiquitious join-points where some program can be extended with code to run before and after it at every step.
+
+The modularity possible by the synchronous programming style prevents you from conflating the different aspects like rolling and blinking in one place. Imagine how complex and convoluted this combined behavior would be in a traditional environment.
+
+The  `BlinkController` itself separates the aspect of calculating the color and period from blinking the led itself (Note that we could move code in the first trail to a streaming activity but the point is that the Blink code is not sprinkled with calculations of the color and period but cleanly separated from it):
+
+```Swift
+activity (name.BlinkController, [name.speed, name.heading, name.requests]) { val in
+    cobegin {
+        strong {
+            nowAndEvery { true } do: {
+                exec {
+                    let speed: Float = val.speed
+                    if abs(speed - 0.0) < 0.001 {
+                        val.col = SyncsColor(red: 0x20, green: 0x20, blue: 0x20)
+                        val.period = 0
+                    } else {
+                        val.col = speed > 0 ? SyncsColor.green : SyncsColor.red
+                        val.period = Int(1000 - 900 * abs(speed))
+                    }
+                }
+            }
+        }
+        strong {
+            run (name.Blink, [val.col, val.period, val.requests])
+        }
+    }
+}
+```	
+Blinking uses a little helper enum (`LEDMode`) to detect mode changes as we don't want to restart the `repeat` loop every time the period changes but only when the mode changes from stady to blinking:
+
+```Swift
+activity (name.Blink, [name.col, name.period, name.requests]) { val in
+    `defer` { (val.requests as SyncsRequests).setMainLED(to: .black) }
+    when { LEDMode.make(from: val.period) != val.prevMode } reset: {
+        exec { val.prevMode = LEDMode.make(from: val.period) }
+        `if` { val.prevMode == LEDMode.steady } then: {
+            run (Syncs.SetMainLED, [val.col])
+            await { false }
+        } else: {
+            `repeat` {
+                run (Syncs.SetMainLED, [val.col])
+                run (Syncs.WaitMilliseconds, [val.period])
+                run (Syncs.SetMainLED, [SyncsColor.black])
+                run (Syncs.WaitMilliseconds, [val.period])
             }
         }
     }

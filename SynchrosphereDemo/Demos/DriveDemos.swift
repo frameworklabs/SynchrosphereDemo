@@ -245,6 +245,105 @@ func driveNormalizedManualModeFunc(_ engine: SyncsEngine, _ config: SyncsControl
     }
 }
 
+/// Helper type to store the mode of the led.
+enum LEDMode : Equatable {
+    case steady
+    case blinking
+    
+    static func make(from period: Int) -> LEDMode {
+        period == 0 ? .steady : .blinking
+    }
+}
+
+/// Module to blink while driving.
+let blinkControllerModule = Module { name in
+
+    activity (name.BlinkController, [name.speed, name.heading, name.requests]) { val in
+        cobegin {
+            strong {
+                nowAndEvery { true } do: {
+                    exec {
+                        let speed: Float = val.speed
+                        if abs(speed - 0.0) < 0.001 {
+                            val.col = SyncsColor(red: 0x20, green: 0x20, blue: 0x20)
+                            val.period = 0
+                        } else {
+                            val.col = speed > 0 ? SyncsColor.green : SyncsColor.red
+                            val.period = Int(1000 - 900 * abs(speed))
+                        }
+                    }
+                }
+            }
+            strong {
+                run (name.Blink, [val.col, val.period, val.requests])
+            }
+        }
+    }
+    
+    activity (name.Blink, [name.col, name.period, name.requests]) { val in
+        `defer` { (val.requests as SyncsRequests).setMainLED(to: .black) }
+        when { LEDMode.make(from: val.period) != val.prevMode } reset: {
+            exec { val.prevMode = LEDMode.make(from: val.period) }
+            `if` { val.prevMode == LEDMode.steady } then: {
+                run (Syncs.SetMainLED, [val.col])
+                await { false }
+            } else: {
+                `repeat` {
+                    run (Syncs.SetMainLED, [val.col])
+                    run (Syncs.WaitMilliseconds, [val.period])
+                    run (Syncs.SetMainLED, [SyncsColor.black])
+                    run (Syncs.WaitMilliseconds, [val.period])
+                }
+            }
+        }
+    }
+}
+
+/// Normalized manual mode driving and blinking.
+func driveRollAndBlinkFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ input: Input) -> SyncsController {
+    
+    var config = config
+    config.imports = [manualControllerModule, rollControllerModule, blinkControllerModule]
+    
+    return engine.makeController(for: config) { name, ctx in
+                    
+        activity (name.Main, []) { val in
+            run (Syncs.SetBackLED, [SyncsBrightness(255)])
+            exec {
+                val.speed = Float(0)
+                val.heading = Float(0)
+            }
+            cobegin {
+                strong {
+                    run (name.ManualController, [input], [val.loc.speed, val.loc.heading])
+                }
+                strong {
+                    run (name.Actuator, [val.speed, val.heading])
+                }
+            }
+        }
+        
+        activity (name.Actuator, [name.speed, name.heading]) { val in
+            exec {
+                val.syncsSpeed = SyncsSpeed(0)
+                val.syncsHeading = SyncsHeading(0)
+                val.syncsDir = SyncsDir.forward
+            }
+            cobegin {
+                strong {
+                    run (name.SpeedAndHeadingConverter, [val.speed, val.heading], [val.loc.syncsSpeed, val.loc.syncsHeading, val.loc.syncsDir])
+                }
+                strong {
+                    run (name.RollController, [val.syncsSpeed, val.syncsHeading, val.syncsDir, ctx.requests])
+                }
+                strong {
+                    run (name.BlinkController, [val.speed, val.heading, ctx.requests])
+                }
+            }
+        }
+    }
+}
+
 /// This is a playground demo for your Drive experiments.
 func driveMyDemoFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ input: Input) -> SyncsController {
     engine.makeController(for: config) { name, ctx in

@@ -22,6 +22,7 @@ enum Demo : String, CaseIterable, Identifiable {
     case driveRollAheadAndBack = "Drive - Roll Ahead and Back"
     case driveManualMode = "Drive - Manual Mode"
     case driveNormalizedManualMode = "Drive - Normalized Manual Mode"
+    case driveRollAndBlink = "Drive - Roll and Blink"
     case driveMyDemo = "Drive - My Demo"
 
     var id: Demo {
@@ -80,6 +81,8 @@ extension Demo {
             return .function(driveManualModeFunc)
         case .driveNormalizedManualMode:
             return .function(driveNormalizedManualModeFunc)
+        case.driveRollAndBlink:
+            return .function(driveRollAndBlinkFunc)
         case .driveMyDemo:
             return .function(driveMyDemoFunc)
         }
