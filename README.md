@@ -578,7 +578,7 @@ activity (name.RollController, [name.speed, name.heading, name.dir]) { val in
 
 Let's extend the last demo by having the robot blink while it is driving. When it is driving forward, it should blink green, when driving backward red. The blinking frequency should increase on higher speeds and if the robot does not move, the led should stay white instead without blinking.
 
-The only change needed is to extend the `Actuator` activity with another concurrent trail which runs the `BlinkController`:
+The only change needed is the extension of the `Actuator` activity by another concurrent trail to run a  `BlinkController`:
 
 ```Swift
 activity (name.Actuator, [name.speed, name.heading]) { val in
@@ -601,11 +601,11 @@ activity (name.Actuator, [name.speed, name.heading]) { val in
 }
 ```
 
-So, the rolling is extended with the aspect of blinking here. The synchronous programming model allows this kind of Aspect-oriented prrogramming (AOP) as the synchronization points pose as ubiquitious join-points where some program can be extended with code to run before and after it at every step.
+So, the rolling is extended with the aspect of blinking here. The synchronous programming model allows this kind of Aspect-oriented prrogramming (AOP) as the synchronization points pose as general join-points where a program can be extended with code to run before and after it at every step.
 
-The modularity possible by the synchronous programming style prevents you from conflating the different aspects like rolling and blinking in one place. Imagine how complex and convoluted this combined behavior would be in a traditional environment.
+The modularity possible by the synchronous programming style prevents you from conflating different aspects like rolling and blinking in one place. Imagine how complex and convoluted this combined behavior would be in a traditional environment.
 
-The  `BlinkController` itself separates the aspect of calculating the color and period from blinking the led itself (Note that we could move code in the first trail to a streaming activity but the point is that the Blink code is not sprinkled with calculations of the color and period but cleanly separated from it):
+The  `BlinkController` itself separates the aspect of calculating the color and period from blinking the led itself (note that we could move the code in the first trail to a separate activity but the point of modularity here is is that the Blink code is not sprinkled with calculations of the color and period but cleanly separated from it):
 
 ```Swift
 activity (name.BlinkController, [name.speed, name.heading, name.requests]) { val in
@@ -630,7 +630,7 @@ activity (name.BlinkController, [name.speed, name.heading, name.requests]) { val
     }
 }
 ```	
-Blinking uses a little helper enum (`LEDMode`) to detect mode changes as we don't want to restart the `repeat` loop every time the period changes but only when the mode changes from stady to blinking:
+Blinking uses a little helper enum (`LEDMode`) to detect mode changes as we don't want to restart the `repeat` loop every time the period changes, but only, when the mode changes from steady to blinking:
 
 ```Swift
 activity (name.Blink, [name.col, name.period, name.requests]) { val in
@@ -651,6 +651,53 @@ activity (name.Blink, [name.col, name.period, name.requests]) { val in
     }
 }
 ```
+
+#### Drive - Auto Square
+
+Here and in the next demo we want to roll automatically. To reduce repetitive code, we create a subclass of  `DemoController`  called `AutoController` which implements the main activity by connecting a drive controller to the drive actuator. Furthermore, the drive controller will allow to switch between automatic driving and manual driving so that you can navigate "home" at any time needed. The manual mode can also be used to aim the robot. When the automatic mode is activated, the current heading will be set as heading 0. Also, switching back to manual mode will set the speed to 0 bringing the robot to a stop.	
+
+In this demo the robot will automatically roll repetitively in a square turning 90 degrees left every 2 seconds. 
+The code will basically look like this, but in the implementation you will see that the speed and wait time can be modified by the keyboard:
+
+```Swift
+class AutoSquareController : AutoController {
+    override func makeAutoModule() -> Module {
+        Module { name in            
+            activity (name.AutoController, [], [name.speed, name.heading]) { val in
+                exec {
+                    val.millis = 2000
+                    val.speed = Float(0.5)
+                    val.heading = Float(0)
+                }
+                `repeat` {
+                    run (Syncs.WaitMilliseconds, [val.millis])
+                    exec { val.heading += Float.pi / 2 }
+                }
+            }
+        }
+    }
+}
+```
+So, we have to override the `makeAutoModule` method in the `AutoController` subclass and define an activity named again `AutoController`.
+
+#### Drive - Auto Circle
+
+To drive in a circle, the `AutoController` activity will look like this in its basic form:
+
+```Swift
+activity (name.AutoController, [], [name.speed, name.heading]) { val in
+    exec {
+        val.deltaRad = Float.pi / 30
+        val.speed = Float(0.5)
+        val.heading = Float(0)
+    }
+    every { self.context.clock.tick } do: {
+        exec { val.heading += val.deltaRad as Float }
+    }
+}
+```
+
+Every clock tick we change the heading angle slightly while we move at constant speed. With a `deltaRad` of `2 * pi / 60` and a clock frequency of 10 Hz a full circle will take 6 seconds. Depending on the speed, the circle will then be smaller or bigger. 
 
 #### Drive - My Demo
 

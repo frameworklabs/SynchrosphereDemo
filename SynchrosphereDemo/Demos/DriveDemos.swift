@@ -344,6 +344,164 @@ func driveRollAndBlinkFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfi
     }
 }
 
+/// A baseclass for auto drive demos.
+class AutoController : DemoController {
+    
+    var context: SyncsControllerContext!
+    var input: Input!
+        
+    func makeSyncsController(engine: SyncsEngine, config: SyncsControllerConfig, input: Input) -> SyncsController {
+        
+        self.input = input
+        
+        var config = config
+        config.imports = [manualControllerModule, rollControllerModule, blinkControllerModule, makeAutoModule()]
+        
+        return engine.makeController(for: config) { name, ctx in
+                                    
+            activity (name.Main, []) { val in
+                exec { self.context = ctx }
+                run (Syncs.SetBackLED, [SyncsBrightness(255)])
+                exec {
+                    val.speed = Float(0)
+                    val.heading = Float(0)
+                }
+                cobegin {
+                    strong {
+                        run (name.DriveController, [], [val.loc.speed, val.loc.heading])
+                    }
+                    strong {
+                        run (name.Actuator, [val.speed, val.heading])
+                    }
+                }
+            }
+                  
+            activity (name.DriveController, [], [name.speed, name.heading]) { val in
+                exec {
+                    ctx.logInfo("Press 'a' to start auto mode, 'm' to start manual mode")
+                }
+                await { input.didPressKey(in: "am") }
+                when { input.didPressKey(in: "am") && input.key != val.prevKey } reset: {
+                    exec { val.prevKey = input.key }
+                    
+                    `if` { input.key == "a" } then: {
+                        exec { ctx.logInfo("Auto mode") }
+                        run (Syncs.ResetHeading, [])
+                        run (name.AutoController, [], [val.loc.speed, val.loc.heading])
+                    } else: {
+                        exec { ctx.logInfo("Manual mode") }
+                        exec { val.speed = Float(0) }
+                        run (name.ManualController, [input], [val.loc.speed, val.loc.heading])
+                    }
+                }
+            }
+            
+            activity (name.Actuator, [name.speed, name.heading]) { val in
+                exec {
+                    val.syncsSpeed = SyncsSpeed(0)
+                    val.syncsHeading = SyncsHeading(0)
+                    val.syncsDir = SyncsDir.forward
+                }
+                cobegin {
+                    strong {
+                        run (name.SpeedAndHeadingConverter, [val.speed, val.heading], [val.loc.syncsSpeed, val.loc.syncsHeading, val.loc.syncsDir])
+                    }
+                    strong {
+                        run (name.RollController, [val.syncsSpeed, val.syncsHeading, val.syncsDir, ctx.requests])
+                    }
+                    strong {
+                        run (name.BlinkController, [val.speed, val.heading, ctx.requests])
+                    }
+                }
+            }
+        }
+    }
+    
+    /// Needs to be overwritten in subclass and implemented to return an activity called  `AutoController`,
+    func makeAutoModule() -> Module {
+        fatalError("Implement me in subclass!")
+    }
+}
+
+/// A demo which moves the robot automatically in a square.
+class AutoSquareController : AutoController {
+    override func makeAutoModule() -> Module {
+        Module { name in
+            
+            activity (name.AutoController, [], [name.speed, name.heading]) { val in
+                exec {
+                    val.millis = 2000
+                    val.speed = Float(0.5)
+                    val.heading = Float(0)
+                    
+                    self.context.logInfo("press +/- to increase/decrease speed")
+                    self.context.logInfo("press l/s for longer/shorter time until turn")
+                }
+                cobegin {
+                    strong {
+                        nowAndEvery { self.input.didPressKey } do: {
+                            exec {
+                                switch self.input.key {
+                                case "+": val.speed = min(1, val.speed as Float + 0.05)
+                                case "-": val.speed = max(0, val.speed as Float - 0.05)
+                                case "l": val.millis += 100
+                                case "s": val.millis = max(200, val.millis - 100)
+                                default: break
+                                }
+                            }
+                        }
+                    }
+                    strong {
+                        `repeat` {
+                            run (Syncs.WaitMilliseconds, [val.millis])
+                            exec { val.heading += Float.pi / 2 }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// A demo which moves the robot automatically in a circle.
+class AutoCircleController : AutoController {
+    override func makeAutoModule() -> Module {
+        Module { name in
+            
+            activity (name.AutoController, [], [name.speed, name.heading]) { val in
+                exec {
+                    val.deltaRad = Float.pi / 30
+                    val.speed = Float(0.5)
+                    val.heading = Float(0)
+
+                    self.context.logInfo("press +/- to increase/decrease speed")
+                    self.context.logInfo("press l/s for larger/smaller delta angle")
+                }
+                cobegin {
+                    strong {
+                        nowAndEvery { self.input.didPressKey } do: {
+                            exec {
+                                switch self.input.key {
+                                case "+": val.speed = min(1, val.speed as Float + 0.05)
+                                case "-": val.speed = max(0, val.speed as Float - 0.05)
+                                case "l": val.deltaRad *= Float(1.1)
+                                case "s": val.deltaRad /= Float(1.1)
+                                default: break
+                                }
+                            }
+                        }
+                    }
+                    strong {
+                        every { self.context.clock.tick } do: {
+                            exec { val.heading += val.deltaRad as Float }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// This is a playground demo for your Drive experiments.
 func driveMyDemoFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ input: Input) -> SyncsController {
     engine.makeController(for: config) { name, ctx in

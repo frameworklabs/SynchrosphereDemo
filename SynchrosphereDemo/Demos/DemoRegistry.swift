@@ -23,6 +23,8 @@ enum Demo : String, CaseIterable, Identifiable {
     case driveManualMode = "Drive - Manual Mode"
     case driveNormalizedManualMode = "Drive - Normalized Manual Mode"
     case driveRollAndBlink = "Drive - Roll and Blink"
+    case driveAutoSquare = "Drive - Auto Square"
+    case driveAutoCircle = "Drive - Auto Circle"
     case driveMyDemo = "Drive - My Demo"
 
     var id: Demo {
@@ -83,6 +85,10 @@ extension Demo {
             return .function(driveNormalizedManualModeFunc)
         case.driveRollAndBlink:
             return .function(driveRollAndBlinkFunc)
+        case .driveAutoSquare:
+            return .controller(AutoSquareController())
+        case .driveAutoCircle:
+            return .controller(AutoCircleController())
         case .driveMyDemo:
             return .function(driveMyDemoFunc)
         }
