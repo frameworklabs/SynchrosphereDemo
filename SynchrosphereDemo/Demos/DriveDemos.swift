@@ -42,53 +42,51 @@ func driveManualModeFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig,
         
         activity (name.QueryInput, [], [name.speed, name.heading, name.dir]) { val in
             every { input.didPressKey } do: {
-                exec {
-                    let speed: SyncsSpeed = val.speed
-                    var dir: SyncsDir = val.dir
-                    let heading: SyncsHeading = val.heading
-                    
-                    var intSpeed: Int = Int(speed)
-                    if dir == .backward {
-                        intSpeed = -intSpeed
-                    }
-                    var intHeading: Int = Int(heading)
-                    
-                    switch Int(input.key.utf16.first!) {
-                    case NSUpArrowFunctionKey:
-                        intSpeed += 10
-                    case NSDownArrowFunctionKey:
-                        intSpeed -= 10
-                    case NSLeftArrowFunctionKey:
-                        intHeading -= 10
-                    case NSRightArrowFunctionKey:
-                        intHeading += 10
-                    default:
-                        break
-                    }
-
-                    if intSpeed > 250 {
-                        intSpeed = 250
-                        dir = .forward
-                    } else if intSpeed < -250 {
-                        intSpeed = 250
-                        dir = .backward
-                    } else if intSpeed >= 0 {
-                        dir = .forward
-                    } else { // intSpeed < 0
-                        intSpeed = -intSpeed
-                        dir = .backward
-                        dir = .forward
-                    }
-                    val.speed = SyncsSpeed(intSpeed)
-                    val.dir = dir
-                    
-                    if intHeading < 0 {
-                        intHeading += 360
-                    } else if intHeading >= 360 {
-                        intHeading -= 360
-                    }
-                    val.heading = SyncsHeading(intHeading)
+                let speed: SyncsSpeed = val.speed
+                var dir: SyncsDir = val.dir
+                let heading: SyncsHeading = val.heading
+                
+                var intSpeed: Int = Int(speed)
+                if dir == .backward {
+                    intSpeed = -intSpeed
                 }
+                var intHeading: Int = Int(heading)
+                
+                switch Int(input.key.utf16.first!) {
+                case NSUpArrowFunctionKey:
+                    intSpeed += 10
+                case NSDownArrowFunctionKey:
+                    intSpeed -= 10
+                case NSLeftArrowFunctionKey:
+                    intHeading -= 10
+                case NSRightArrowFunctionKey:
+                    intHeading += 10
+                default:
+                    break
+                }
+
+                if intSpeed > 250 {
+                    intSpeed = 250
+                    dir = .forward
+                } else if intSpeed < -250 {
+                    intSpeed = 250
+                    dir = .backward
+                } else if intSpeed >= 0 {
+                    dir = .forward
+                } else { // intSpeed < 0
+                    intSpeed = -intSpeed
+                    dir = .backward
+                    dir = .forward
+                }
+                val.speed = SyncsSpeed(intSpeed)
+                val.dir = dir
+                
+                if intHeading < 0 {
+                    intHeading += 360
+                } else if intHeading >= 360 {
+                    intHeading -= 360
+                }
+                val.heading = SyncsHeading(intHeading)
             }
         }
         
@@ -104,8 +102,9 @@ func driveManualModeFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig,
                     run (name.QueryInput, [], [val.loc.speed, val.loc.heading, val.loc.dir])
                 }
                 strong {
-                    nowAndEvery { ctx.clock.tick } do: {
+                    `repeat` {
                         run (Syncs.Roll, [val.speed, val.heading, val.dir])
+                        await { ctx.clock.tick }
                     }
                 }
             }
@@ -118,31 +117,29 @@ let manualControllerModule = Module { name in
     
     activity (name.ManualController, [name.input], [name.speed, name.heading]) { val in
         every { (val.input as Input).didPressKey } do: {
-            exec {
-                let input: Input = val.input
-                var speed: Float = val.speed
-                var heading: Float = val.heading
-                            
-                let steps: Float = 20
-                let speedIncrement: Float = 1 / steps
-                let headingIncrement: Float = .pi / steps
-                
-                switch Int(input.key.utf16.first!) {
-                case NSUpArrowFunctionKey:
-                    speed += speedIncrement
-                case NSDownArrowFunctionKey:
-                    speed -= speedIncrement
-                case NSLeftArrowFunctionKey:
-                    heading += headingIncrement
-                case NSRightArrowFunctionKey:
-                    heading -= headingIncrement
-                default:
-                    break
-                }
-                
-                val.speed = max(-1.0, min(1.0, speed))
-                val.heading = heading
+            let input: Input = val.input
+            var speed: Float = val.speed
+            var heading: Float = val.heading
+                        
+            let steps: Float = 20
+            let speedIncrement: Float = 1 / steps
+            let headingIncrement: Float = .pi / steps
+            
+            switch Int(input.key.utf16.first!) {
+            case NSUpArrowFunctionKey:
+                speed += speedIncrement
+            case NSDownArrowFunctionKey:
+                speed -= speedIncrement
+            case NSLeftArrowFunctionKey:
+                heading += headingIncrement
+            case NSRightArrowFunctionKey:
+                heading -= headingIncrement
+            default:
+                break
             }
+            
+            val.speed = max(-1.0, min(1.0, speed))
+            val.heading = heading
         }
     }
 }
@@ -151,32 +148,30 @@ let manualControllerModule = Module { name in
 let rollControllerModule = Module { name in
     
     activity (name.SpeedAndHeadingConverter, [name.normSpeed, name.normHeading], [name.speed, name.heading, name.dir]) { val in
-        nowAndEvery { true } do: {
-            exec {
-                let normSpeed: Float = val.normSpeed
-                var normHeading: Float = val.normHeading
-                
-                if normSpeed >= 0 {
-                    val.speed = SyncsSpeed(normSpeed * 255)
-                    val.dir = SyncsDir.forward
-                } else {
-                    val.speed = SyncsSpeed(-normSpeed * 255)
-                    val.dir = SyncsDir.backward
+        always {
+            let normSpeed: Float = val.normSpeed
+            var normHeading: Float = val.normHeading
+            
+            if normSpeed >= 0 {
+                val.speed = SyncsSpeed(normSpeed * 255)
+                val.dir = SyncsDir.forward
+            } else {
+                val.speed = SyncsSpeed(-normSpeed * 255)
+                val.dir = SyncsDir.backward
+            }
+            
+            if normHeading > 0 {
+                while normHeading > 2 * Float.pi {
+                    normHeading -= 2 * .pi
                 }
-                
-                if normHeading > 0 {
-                    while normHeading > 2 * Float.pi {
-                        normHeading -= 2 * .pi
-                    }
-                    let degrees: Float = normHeading / (2 * .pi) * 360
-                    val.heading = SyncsHeading(360 - degrees)
-                } else { // heading <= 0
-                    while normHeading < -2 * Float.pi {
-                        normHeading += 2 * .pi
-                    }
-                    let degrees: Float = -normHeading / (2 * .pi) * 360
-                    val.heading = SyncsHeading(degrees)
+                let degrees: Float = normHeading / (2 * .pi) * 360
+                val.heading = SyncsHeading(360 - degrees)
+            } else { // heading <= 0
+                while normHeading < -2 * Float.pi {
+                    normHeading += 2 * .pi
                 }
+                let degrees: Float = -normHeading / (2 * .pi) * 360
+                val.heading = SyncsHeading(degrees)
             }
         }
     }
@@ -261,16 +256,14 @@ let blinkControllerModule = Module { name in
     activity (name.BlinkController, [name.speed, name.heading, name.requests]) { val in
         cobegin {
             strong {
-                nowAndEvery { true } do: {
-                    exec {
-                        let speed: Float = val.speed
-                        if abs(speed - 0.0) < 0.001 {
-                            val.col = SyncsColor(red: 0x20, green: 0x20, blue: 0x20)
-                            val.period = 0
-                        } else {
-                            val.col = speed > 0 ? SyncsColor.green : SyncsColor.red
-                            val.period = Int(1000 - 900 * abs(speed))
-                        }
+                always {
+                    let speed: Float = val.speed
+                    if abs(speed - 0.0) < 0.001 {
+                        val.col = SyncsColor(red: 0x20, green: 0x20, blue: 0x20)
+                        val.period = 0
+                    } else {
+                        val.col = speed > 0 ? SyncsColor.green : SyncsColor.red
+                        val.period = Int(1000 - 900 * abs(speed))
                     }
                 }
             }
@@ -440,14 +433,12 @@ class AutoSquareController : AutoController {
                 cobegin {
                     strong {
                         nowAndEvery { self.input.didPressKey } do: {
-                            exec {
-                                switch self.input.key {
-                                case "+": val.speed = min(1, val.speed as Float + 0.05)
-                                case "-": val.speed = max(0, val.speed as Float - 0.05)
-                                case "l": val.millis += 100
-                                case "s": val.millis = max(200, val.millis - 100)
-                                default: break
-                                }
+                            switch self.input.key {
+                            case "+": val.speed = min(1, val.speed as Float + 0.05)
+                            case "-": val.speed = max(0, val.speed as Float - 0.05)
+                            case "l": val.millis += 100
+                            case "s": val.millis = max(200, val.millis - 100)
+                            default: break
                             }
                         }
                     }
@@ -480,20 +471,18 @@ class AutoCircleController : AutoController {
                 cobegin {
                     strong {
                         nowAndEvery { self.input.didPressKey } do: {
-                            exec {
-                                switch self.input.key {
-                                case "+": val.speed = min(1, val.speed as Float + 0.05)
-                                case "-": val.speed = max(0, val.speed as Float - 0.05)
-                                case "l": val.deltaRad *= Float(1.1)
-                                case "s": val.deltaRad /= Float(1.1)
-                                default: break
-                                }
+                            switch self.input.key {
+                            case "+": val.speed = min(1, val.speed as Float + 0.05)
+                            case "-": val.speed = max(0, val.speed as Float - 0.05)
+                            case "l": val.deltaRad *= Float(1.1)
+                            case "s": val.deltaRad /= Float(1.1)
+                            default: break
                             }
                         }
                     }
                     strong {
                         every { self.context.clock.tick } do: {
-                            exec { val.heading += val.deltaRad as Float }
+                            val.heading += val.deltaRad as Float
                         }
                     }
                 }
