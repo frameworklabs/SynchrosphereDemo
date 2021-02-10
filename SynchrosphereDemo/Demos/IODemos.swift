@@ -91,7 +91,7 @@ func ioAwaitInputFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ 
     return engine.makeController(for: config) { name, ctx in
         
         activity (name.Main, []) { val in
-            exec { ctx.logInfo("Press 's' to start blinking") }
+            exec { ctx.logNote("Press 's' to start blinking") }
             await { input.key == "s" }
             run (name.Blink, [SyncsColor.red, 1000])
         }
@@ -106,7 +106,7 @@ func ioPreemptOnInputFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig
     return engine.makeController(for: config) { name, ctx in
         
         activity (name.Main, []) { val in
-            exec { ctx.logInfo("Press 'q' to stop blinking") }
+            exec { ctx.logNote("Press 'q' to stop blinking") }
             when { input.key == "q" } abort: {
                 run (name.Blink, [SyncsColor.red, 1000])
             }
@@ -141,7 +141,7 @@ func ioPreemptWithDeferFunc(_ engine: SyncsEngine, _ config: SyncsControllerConf
     return engine.makeController(for: config) { name, ctx in
         
         activity (name.Main, []) { val in
-            exec { ctx.logInfo("Press 'q' to stop blinking") }
+            exec { ctx.logNote("Press 'q' to stop blinking") }
             when { input.key == "q" } abort: {
                 run (name.Blink, [SyncsColor.red, 1000, ctx.requests])
             }
@@ -155,7 +155,7 @@ func ioPreemptWithDeferFunc(_ engine: SyncsEngine, _ config: SyncsControllerConf
 let queryColorOnceModule = Module { name in
     
     activity (name.QueryColor, [name.log, name.input]) { val in
-        exec { (val.log as SyncsLogging).logInfo("Select color by pressing 'r', 'g' or 'b'") }
+        exec { (val.log as SyncsLogging).logNote("Select color by pressing 'r', 'g' or 'b'") }
         await { (val.input as Input).didPressKey(in: "rgb") }
         exec {
             let input: Input = val.input
@@ -216,7 +216,7 @@ let queryColorModule = Module { name in
     
     activity (name.QueryColor, [name.log, name.input], [name.col]) { val in
         `repeat` {
-            exec { (val.log as SyncsLogging).logInfo("Select color by pressing 'r', 'g' or 'b'") }
+            exec { (val.log as SyncsLogging).logNote("Select color by pressing 'r', 'g' or 'b'") }
             await { (val.input as Input).didPressKey(in: "rgb") }
             exec {
                 let input: Input = val.input
@@ -293,7 +293,7 @@ class IOFinalController : DemoController {
             
             activity (name.QueryColor, [], [name.col]) { val in
                 `repeat` {
-                    exec { ctx.logInfo("Select color by pressing 'r', 'g' or 'b'") }
+                    exec { ctx.logNote("Select color by pressing 'r', 'g' or 'b'") }
                     await { input.didPressKey(in: "rgb") }
                     exec {
                         switch input.key {
@@ -308,7 +308,7 @@ class IOFinalController : DemoController {
             
             activity (name.QueryPeriod, [], [name.period]) { val in
                 `repeat` {
-                    exec { ctx.logInfo("Increase period by pressing '+', decrease it by '-'") }
+                    exec { ctx.logNote("Increase period by pressing '+', decrease it by '-'") }
                     await { input.didPressKey(in: "+-") }
                     exec {
                         let period: Int = val.period
@@ -382,7 +382,7 @@ class IOFinalController : DemoController {
                         }
                     }
                 }
-                exec { ctx.logInfo("Demo done - press Stop button to quit!") }
+                exec { ctx.logNote("Demo done - press Stop button to quit!") }
                 await { false }
             }
         }

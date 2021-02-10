@@ -29,7 +29,7 @@ func driveRollAheadAndBackFunc(_ engine: SyncsEngine, _ config: SyncsControllerC
                 run (Syncs.RollForSeconds, [SyncsSpeed(100), SyncsHeading(0), SyncsDir.backward, 3])
                 run (Syncs.SetBackLED, [SyncsBrightness(0)])
                 
-                exec { ctx.logInfo("Press q to quit, r to run again") }
+                exec { ctx.logNote("Press q to quit, r to run again") }
                 await { input.didPressKey(in: "rq") }
             } until: { input.key == "q" }
         }
@@ -371,7 +371,7 @@ class AutoController : DemoController {
                   
             activity (name.DriveController, [], [name.speed, name.heading]) { val in
                 exec {
-                    ctx.logInfo("Press 'a' to start auto mode, 'm' to start manual mode")
+                    ctx.logNote("Press 'a' to start auto mode, 'm' to start manual mode")
                 }
                 await { input.didPressKey(in: "am") }
                 when { input.didPressKey(in: "am") && input.key != val.prevKey } reset: {
@@ -427,8 +427,8 @@ class AutoSquareController : AutoController {
                     val.speed = Float(0.5)
                     val.heading = Float(0)
                     
-                    self.context.logInfo("press +/- to increase/decrease speed")
-                    self.context.logInfo("press l/s for longer/shorter time until turn")
+                    self.context.logNote("press +/- to increase/decrease speed")
+                    self.context.logNote("press l/s for longer/shorter time until turn")
                 }
                 cobegin {
                     strong {
@@ -465,8 +465,8 @@ class AutoCircleController : AutoController {
                     val.speed = Float(0.5)
                     val.heading = Float(0)
 
-                    self.context.logInfo("press +/- to increase/decrease speed")
-                    self.context.logInfo("press l/s for larger/smaller delta angle")
+                    self.context.logNote("press +/- to increase/decrease speed")
+                    self.context.logNote("press l/s for larger/smaller delta angle")
                 }
                 cobegin {
                     strong {

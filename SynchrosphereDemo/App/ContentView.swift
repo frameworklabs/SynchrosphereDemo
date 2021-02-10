@@ -1,6 +1,7 @@
 // Project Synchrosphere
 // Copyright 2021, Framework Labs.
 
+import Synchrosphere
 import SwiftUI
 
 /// The main view.
@@ -30,7 +31,8 @@ struct ContentView: View {
                         ScrollViewReader { scrollView in
                             LazyVStack(alignment: .leading) {
                                 ForEach(0..<model.logLines.count, id: \.self) { i in
-                                    Text(model.logLines[i]).id(i)
+                                    let logLine = model.logLines[i]
+                                    Text(logLine.message).foregroundColor(logLine.level.color).id(i)
                                 }
                             }
                             .onChange(of: model.logLines) { _ in
@@ -77,5 +79,18 @@ struct ContentView: View {
         .colorScheme(.dark)
         .padding()
         .background(KeyEventView())
+    }
+}
+
+extension SyncsLogLevel {
+    var color: Color {
+        switch self {
+        case .info:
+            return .primary
+        case .note:
+            return .orange
+        case .error:
+            return .red
+        }
     }
 }

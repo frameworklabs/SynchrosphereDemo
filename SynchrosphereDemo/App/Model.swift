@@ -23,11 +23,15 @@ class Model: ObservableObject {
     @Published var isBatteryLow = false
     @Published var isBatteryCritical = false
 
-    @Published var logLines = [String]()
+    struct LogLine : Equatable {
+        let message: String
+        let level: SyncsLogLevel
+    }
+    @Published var logLines = [LogLine]()
         
     private let engine = SyncsEngine()
     private let input = Input()
-    private var config = SyncsControllerConfig()
+    private var config = SyncsControllerConfig(deviceSelector: .anyMini)
     private var demoController: DemoController?
     private var syncsController: SyncsController?
 
@@ -45,7 +49,7 @@ class Model: ObservableObject {
             self.isBatteryCritical = state.contains(.isBatteryCritical)
         }
         config.logFunction = { [unowned self] msg, level in
-            self.logLines.append("[\(level)] \(msg)")
+            self.logLines.append(LogLine(message: msg, level: level))
         }
         config.didTickCallback = { [unowned self] in
             self.input.clear()
