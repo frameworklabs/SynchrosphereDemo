@@ -392,6 +392,7 @@ class IOFinalController : DemoController {
 /// This is a playground demo for your IO experiments.
 func ioMyDemoFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ input: Input) -> SyncsController {
     engine.makeController(for: config) { name, ctx in
+        
         activity (name.Main, []) { val in
             // Replace these lines with your control code!
             exec { ctx.logInfo("My Demo") }

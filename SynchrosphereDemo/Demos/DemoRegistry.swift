@@ -86,11 +86,11 @@ extension Demo {
         case.driveRollAndBlink:
             return .function(driveRollAndBlinkFunc)
         case .driveAutoSquare:
-            return .controller(AutoSquareController())
+            return .controller(AutoSquareController(speed: 0.5, timeMillis: 2000))
         case .driveAutoCircle:
-            return .controller(AutoCircleController())
+            return .controller(AutoCircleController(speed: 0.5))
         case .driveMyDemo:
-            return .function(driveMyDemoFunc)
+            return .controller(MyAutoController())
         }
     }
 }

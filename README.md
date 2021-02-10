@@ -667,21 +667,18 @@ activity (name.Blink, [name.col, name.period, name.requests]) { val in
 
 Here and in the next demo we want to roll automatically. To reduce repetitive code, we create a subclass of  `DemoController`  called `AutoController` which implements the main activity by connecting a drive controller to the drive actuator. Furthermore, the drive controller will allow to switch between automatic driving and manual driving so that you can navigate "home" at any time if needed. The manual mode can also be used to aim the robot. When the automatic mode is activated, the current heading will be set as heading 0. Also, switching back to manual mode will set the speed to 0 bringing the robot to a stop.	
 
-In this demo, the robot will automatically roll repetitively in a square turning 90 degrees left every 2 seconds. 
-The code will basically look like this, but in the implementation you will see that the speed and wait time can be modified via the keyboard:
-
+In this demo, the robot will automatically roll repetitively in a square turning 90 degrees left every 2 seconds:
 ```Swift
 class AutoSquareController : AutoController {
     override func makeAutoModule() -> Module {
         Module { name in            
             activity (name.AutoController, [], [name.speed, name.heading]) { val in
                 exec {
-                    val.millis = 2000
                     val.speed = Float(0.5)
                     val.heading = Float(0)
                 }
                 `repeat` {
-                    run (Syncs.WaitMilliseconds, [val.millis])
+                    run (Syncs.WaitMilliseconds, [2000])
                     exec { val.heading += Float.pi / 2 }
                 }
             }
@@ -693,7 +690,7 @@ So, we have to override the `makeAutoModule` method in the `AutoController` subc
 
 #### Drive - Auto Circle
 
-To drive in a circle, the `AutoController` activity will look like this in its basic form:
+To drive in a circle, the `AutoController` activity will look like this:
 
 ```Swift
 activity (name.AutoController, [], [name.speed, name.heading]) { val in
@@ -714,7 +711,7 @@ In order to drive a circle with a specific diameter, we have to look at the sens
 
 #### Drive - My Demo
 
-This is a playground demo for your Drive experiments.
+This is a playground demo for your auto drive experiments.
 
 If you like, use this already registered demo to drive around your Sphero robot.
 
