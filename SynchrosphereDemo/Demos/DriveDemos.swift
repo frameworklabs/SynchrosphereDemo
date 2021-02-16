@@ -3,7 +3,7 @@
 
 import Synchrosphere
 import Pappe
-import AppKit
+import AppKit // For ArrowFunctionKeys
 
 /// Rolls straight ahead.
 func driveRollAheadFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ input: Input) -> SyncsController {
@@ -135,6 +135,11 @@ let manualControllerModule = Module { name in
             case NSRightArrowFunctionKey:
                 heading -= headingIncrement
             default:
+                if input.key == " " {
+                    speed = 0
+                } else if input.key == "\r" {
+                    heading = 0
+                }
                 break
             }
             
@@ -160,19 +165,21 @@ let rollControllerModule = Module { name in
                 val.dir = SyncsDir.backward
             }
             
+            var heading: SyncsHeading
             if normHeading > 0 {
                 while normHeading > 2 * Float.pi {
                     normHeading -= 2 * .pi
                 }
                 let degrees: Float = normHeading / (2 * .pi) * 360
-                val.heading = SyncsHeading(360 - degrees)
+                heading = SyncsHeading(360 - degrees)
             } else { // heading <= 0
                 while normHeading < -2 * Float.pi {
                     normHeading += 2 * .pi
                 }
                 let degrees: Float = -normHeading / (2 * .pi) * 360
-                val.heading = SyncsHeading(degrees)
+                heading = SyncsHeading(degrees)
             }
+            val.heading = heading == 360 ? 0 : heading
         }
     }
     
@@ -292,11 +299,35 @@ let blinkControllerModule = Module { name in
     }
 }
 
+/// Module to drive the actuator.
+let actuatorModule = Module { name in
+    
+    activity (name.Actuator, [name.speed, name.heading, name.shouldBlink, name.requests]) { val in
+        exec {
+            val.syncsSpeed = SyncsSpeed(0)
+            val.syncsHeading = SyncsHeading(0)
+            val.syncsDir = SyncsDir.forward
+        }
+        cobegin {
+            strong {
+                run (name.SpeedAndHeadingConverter, [val.speed, val.heading], [val.loc.syncsSpeed, val.loc.syncsHeading, val.loc.syncsDir])
+            }
+            strong {
+                run (name.RollController, [val.syncsSpeed, val.syncsHeading, val.syncsDir, val.requests])
+            }
+            strong {
+                `if` { val.shouldBlink } then: {
+                    run (name.BlinkController, [val.speed, val.heading, val.requests])
+                }
+            }
+        }
+    }
+}
 /// Normalized manual mode driving and blinking.
 func driveRollAndBlinkFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ input: Input) -> SyncsController {
     
     var config = config
-    config.imports = [manualControllerModule, rollControllerModule, blinkControllerModule]
+    config.imports = [manualControllerModule, rollControllerModule, blinkControllerModule, actuatorModule]
     
     return engine.makeController(for: config) { name, ctx in
                     
@@ -311,34 +342,15 @@ func driveRollAndBlinkFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfi
                     run (name.ManualController, [input], [val.loc.speed, val.loc.heading])
                 }
                 strong {
-                    run (name.Actuator, [val.speed, val.heading])
-                }
-            }
-        }
-        
-        activity (name.Actuator, [name.speed, name.heading]) { val in
-            exec {
-                val.syncsSpeed = SyncsSpeed(0)
-                val.syncsHeading = SyncsHeading(0)
-                val.syncsDir = SyncsDir.forward
-            }
-            cobegin {
-                strong {
-                    run (name.SpeedAndHeadingConverter, [val.speed, val.heading], [val.loc.syncsSpeed, val.loc.syncsHeading, val.loc.syncsDir])
-                }
-                strong {
-                    run (name.RollController, [val.syncsSpeed, val.syncsHeading, val.syncsDir, ctx.requests])
-                }
-                strong {
-                    run (name.BlinkController, [val.speed, val.heading, ctx.requests])
+                    run (name.Actuator, [val.speed, val.heading, true, ctx.requests])
                 }
             }
         }
     }
 }
 
-/// A baseclass for auto drive demos.
-class AutoController : DemoController {
+/// A baseclass for drive demos.
+class DriveController : DemoController {
     
     var ctx: SyncsControllerContext!
     var input: Input!
@@ -348,7 +360,8 @@ class AutoController : DemoController {
         self.input = input
         
         var config = config
-        config.imports = [manualControllerModule, rollControllerModule, blinkControllerModule, makeAutoModule()]
+        config.imports = [manualControllerModule, rollControllerModule, blinkControllerModule, actuatorModule, makeModule()]
+        config = prepare(config)
         
         return engine.makeController(for: config) { name, ctx in
                                     
@@ -361,15 +374,15 @@ class AutoController : DemoController {
                 }
                 cobegin {
                     strong {
-                        run (name.DriveController, [], [val.loc.speed, val.loc.heading])
+                        run (name.Controller, [], [val.loc.speed, val.loc.heading])
                     }
                     strong {
-                        run (name.Actuator, [val.speed, val.heading])
+                        run (name.Actuator, [val.speed, val.heading, true, ctx.requests])
                     }
                 }
             }
                   
-            activity (name.DriveController, [], [name.speed, name.heading]) { val in
+            activity (name.Controller, [], [name.speed, name.heading]) { val in
                 exec {
                     ctx.logNote("Press 'a' to start auto mode, 'm' to start manual mode")
                 }
@@ -380,7 +393,8 @@ class AutoController : DemoController {
                     `if` { input.key == "a" } then: {
                         exec { ctx.logInfo("Auto mode") }
                         run (Syncs.ResetHeading, [])
-                        run (name.AutoController, [], [val.loc.speed, val.loc.heading])
+                        exec { val.heading = Float(0) }
+                        run (name.DriveController, [], [val.loc.speed, val.loc.heading])
                     } else: {
                         exec { ctx.logInfo("Manual mode") }
                         exec { val.speed = Float(0) }
@@ -388,36 +402,22 @@ class AutoController : DemoController {
                     }
                 }
             }
-            
-            activity (name.Actuator, [name.speed, name.heading]) { val in
-                exec {
-                    val.syncsSpeed = SyncsSpeed(0)
-                    val.syncsHeading = SyncsHeading(0)
-                    val.syncsDir = SyncsDir.forward
-                }
-                cobegin {
-                    strong {
-                        run (name.SpeedAndHeadingConverter, [val.speed, val.heading], [val.loc.syncsSpeed, val.loc.syncsHeading, val.loc.syncsDir])
-                    }
-                    strong {
-                        run (name.RollController, [val.syncsSpeed, val.syncsHeading, val.syncsDir, ctx.requests])
-                    }
-                    strong {
-                        run (name.BlinkController, [val.speed, val.heading, ctx.requests])
-                    }
-                }
-            }
         }
     }
     
-    /// Needs to be overwritten in subclass and implemented to return an activity called  `AutoController`,
-    func makeAutoModule() -> Module {
+    /// Optional hook to further prepare the config in a subclass.
+    func prepare(_ config: SyncsControllerConfig) -> SyncsControllerConfig {
+        return config
+    }
+    
+    /// Needs to be overwritten in subclass and implemented to return an activity called  `DriveController`,
+    func makeModule() -> Module {
         fatalError("Implement me in subclass!")
     }
 }
 
 /// A demo which moves the robot automatically in a square.
-class AutoSquareController : AutoController {
+class DriveSquareController : DriveController {
     private let speed: Float
     private let timeMillis: Int
     
@@ -426,10 +426,10 @@ class AutoSquareController : AutoController {
         self.timeMillis = timeMillis
     }
     
-    override func makeAutoModule() -> Module {
+    override func makeModule() -> Module {
         Module { name in
             
-            activity (name.AutoController, [], [name.speed, name.heading]) { val in
+            activity (name.DriveController, [], [name.speed, name.heading]) { val in
                 exec {
                     val.speed = self.speed
                     val.heading = Float(0)
@@ -444,7 +444,7 @@ class AutoSquareController : AutoController {
 }
 
 /// A demo which moves the robot automatically in a circle.
-class AutoCircleController : AutoController {
+class DriveCircleController : DriveController {
     private let speed: Float
     private let deltaRad: Float
     
@@ -453,10 +453,10 @@ class AutoCircleController : AutoController {
         self.deltaRad = deltaRad
     }
 
-    override func makeAutoModule() -> Module {
+    override func makeModule() -> Module {
         Module { name in
             
-            activity (name.AutoController, [], [name.speed, name.heading]) { val in
+            activity (name.DriveController, [], [name.speed, name.heading]) { val in
                 exec {
                     val.deltaRad = self.deltaRad
                     val.speed = self.speed
@@ -470,12 +470,12 @@ class AutoCircleController : AutoController {
     }
 }
 
-/// This is a playground demo for your auto drive experiments.
-class MyAutoController : AutoController {
-    override func makeAutoModule() -> Module {
+/// This is a playground demo for your own drive experiments.
+class DriveMyDemoController : DriveController {
+    override func makeModule() -> Module {
         Module { name in
             
-            activity (name.AutoController, [], [name.speed, name.heading]) { val in
+            activity (name.DriveController, [], [name.speed, name.heading]) { val in
                 // Replace these lines with your control code!
                 exec { self.ctx.logInfo("My Demo") }
                 await { false }

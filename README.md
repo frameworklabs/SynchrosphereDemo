@@ -665,14 +665,14 @@ activity (name.Blink, [name.col, name.period, name.requests]) { val in
 
 #### Drive - Auto Square
 
-Here and in the next demo we want to roll automatically. To reduce repetitive code, we create a subclass of  `DemoController`  called `AutoController` which implements the main activity by connecting a drive controller to the drive actuator. Furthermore, the drive controller will allow to switch between automatic driving and manual driving so that you can navigate "home" at any time if needed. The manual mode can also be used to aim the robot. When the automatic mode is activated, the current heading will be set as heading 0. Also, switching back to manual mode will set the speed to 0 bringing the robot to a stop.	
+Here and in the next demo we want to roll automatically. To reduce repetitive code, we create a subclass of  `DemoController`  called `DriveController` which implements the main activity by connecting a drive controller to the drive actuator. Furthermore, the drive controller will allow to switch between automatic driving and manual driving so that you can navigate "home" at any time if needed. The manual mode can also be used to aim the robot. When the automatic mode is activated, the current heading will be set as heading 0. Also, switching back to manual mode will set the speed to 0 bringing the robot to a stop.	
 
 In this demo, the robot will automatically roll repetitively in a square turning 90 degrees left every 2 seconds:
 ```Swift
-class AutoSquareController : AutoController {
-    override func makeAutoModule() -> Module {
+class DriveSquareController : DriveController {
+    override func makeModule() -> Module {
         Module { name in            
-            activity (name.AutoController, [], [name.speed, name.heading]) { val in
+            activity (name.DriveController, [], [name.speed, name.heading]) { val in
                 exec {
                     val.speed = Float(0.5)
                     val.heading = Float(0)
@@ -686,14 +686,14 @@ class AutoSquareController : AutoController {
     }
 }
 ```
-So, we have to override the `makeAutoModule` method in the `AutoController` subclass and define an activity named (again) `AutoController`.
+So, we have to override the `makeModule` method in the `DriveController` subclass and define an activity named (again) `DriveController`.
 
 #### Drive - Auto Circle
 
-To drive in a circle, the `AutoController` activity will look like this:
+To drive in a circle, the `DriveController` activity will look like this:
 
 ```Swift
-activity (name.AutoController, [], [name.speed, name.heading]) { val in
+activity (name.DriveController, [], [name.speed, name.heading]) { val in
     exec {
         val.deltaRad = Float.pi / 30
         val.speed = Float(0.5)
@@ -711,10 +711,43 @@ In order to drive a circle with a specific diameter, we have to look at the sens
 
 #### Drive - My Demo
 
-This is a playground demo for your auto drive experiments.
+This is a playground demo for your own drive experiments.
 
 If you like, use this already registered demo to drive around your Sphero robot.
 
 ### Sensor Demos
 
-Will contain a list of demos which uses the sensor of the robot to improve driving.
+Contains a list of demos which uses the sensor of the robot to improve driving.
+
+#### Sensor - Log Samples
+
+This first sensor demo shows how to enable the streaming of sensor samples. The `Syncs.SensorStreamer` activity will stream sensor samples at the specified frequency when it is run. Which sensors readings should be enabled in the returned samples is specified as input argument to the `SensorStreamer` activity. Here, we drive straight for a few seconds and write the received sensor samples consisting of yaw, location and velocity of the robot to the log:
+
+```Swift
+activity (name.DriveController, [], [name.speed, name.heading]) { val in
+    run (Syncs.SetLocatorFlags, [SyncsLocatorFlags.resetOrientation])
+    run (Syncs.ResetHeading, [])
+
+    exec { val.sample = SyncsSample.unset }
+    cobegin {
+        strong {
+            exec { val.speed = Float(0.5) }
+            run (Syncs.WaitSeconds, [3])
+            exec { val.speed = Float(0) }
+        }
+        weak {
+            run (Syncs.SensorStreamer, [self.ctx.config.tickFrequency, SyncsSensors(arrayLiteral: .yaw, .location, .velocity)], [val.loc.sample])
+        }
+        weak {
+            nowAndEvery { self.ctx.clock.tick } do: {
+                self.ctx.logInfo("sample: \(val.sample as SyncsSample)")
+            }
+        }
+    }
+}
+```
+Note, how we have to pass the set of sensors to enable as using an array literal directly would confuse the parameter passing here.
+
+To orient the coordinate system in the direction of the heading, we set the locator flags to reset the orientation first and reset the heading after that. The positive y axis then points down the direciton of the heading. The perpendicular x axis grows to the right.
+
+In this demo, the y-velocity (in meter per second) and y-location (in meter) will be the values mostly changing whereas the yaw (in degrees) and the x-values will mostly be zero.  
