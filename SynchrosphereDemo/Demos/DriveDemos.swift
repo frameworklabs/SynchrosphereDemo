@@ -282,8 +282,10 @@ let blinkControllerModule = Module { name in
     
     activity (name.Blink, [name.col, name.period, name.requests]) { val in
         `defer` { (val.requests as SyncsRequests).setMainLED(to: .black) }
+        
         when { LEDMode.make(from: val.period) != val.prevMode } reset: {
             exec { val.prevMode = LEDMode.make(from: val.period) }
+            
             `if` { val.prevMode == LEDMode.steady } then: {
                 run (Syncs.SetMainLED, [val.col])
                 await { false }
@@ -323,6 +325,7 @@ let actuatorModule = Module { name in
         }
     }
 }
+
 /// Normalized manual mode driving and blinking.
 func driveRollAndBlinkFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ input: Input) -> SyncsController {
     
@@ -368,6 +371,7 @@ class DriveController : DemoController {
             activity (name.Main, []) { val in
                 exec { self.ctx = ctx }
                 run (Syncs.SetBackLED, [SyncsBrightness(255)])
+                
                 exec {
                     val.speed = Float(0)
                     val.heading = Float(0)
@@ -400,6 +404,7 @@ class DriveController : DemoController {
                         exec { val.speed = Float(0) }
                         run (name.ManualController, [input], [val.loc.speed, val.loc.heading])
                     }
+                    await { false }
                 }
             }
         }

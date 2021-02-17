@@ -721,7 +721,7 @@ Contains a list of demos which uses the sensor of the robot to improve driving.
 
 #### Sensor - Log Samples
 
-This first sensor demo shows how to enable the streaming of sensor samples. The `Syncs.SensorStreamer` activity will stream sensor samples at the specified frequency when it is run. Which sensors readings should be enabled in the returned samples is specified as input argument to the `SensorStreamer` activity. Here, we drive straight for a few seconds and write the received sensor samples consisting of yaw, location and velocity of the robot to the log:
+This first sensor demo shows how to enable the streaming of sensor samples. The `Syncs.SensorStreamer` activity will stream sensor samples at the specified frequency when it is run. Which sensors readings should be enabled in the returned samples is specified as input argument to the `SensorStreamer` activity. Here, we drive straight for a few seconds and write the received sensor samples consisting of yaw, location and velocity to the log:
 
 ```Swift
 activity (name.DriveController, [], [name.speed, name.heading]) { val in
@@ -746,8 +746,38 @@ activity (name.DriveController, [], [name.speed, name.heading]) { val in
     }
 }
 ```
-Note, how we have to pass the set of sensors to enable as using an array literal directly would confuse the parameter passing here.
+Note, how we have to pass the set of sensors to be enabled as using an array literal directly would confuse the parameter passing here.
 
-To orient the coordinate system in the direction of the heading, we set the locator flags to reset the orientation first and reset the heading after that. The positive y axis then points down the direciton of the heading. The perpendicular x axis grows to the right.
+To orient the coordinate system in the direction of the heading, we set the locator flags to reset the orientation first and reset the heading after that. The positive y axis then points down in the direciton of the heading. The perpendicular x axis grows to the right.
 
-In this demo, the y-velocity (in meter per second) and y-location (in meter) will be the values mostly changing whereas the yaw (in degrees) and the x-values will mostly be zero.  
+In this demo, the y-velocity (in meter per second) and y-location (in meter) will be the changing values whereas the yaw (in degrees) and the x-values will mostly be zero.  
+
+#### Sensor - Square Meter
+
+In this demo the location sensor is used to drive the robot in a square of 1 by 1 meter. When the sensor reading in the drive direction approaches the desired distance, the heading is changed by -pi / 2 repeating the process until the robot comes back to the origin:
+
+```Swift
+activity (name.DriveWithSensorController, [name.sample], [name.speed, name.heading]) { val in
+    exec {
+        val.speed = Float(0.5)
+        val.heading = Float(0)
+    }
+    `while` { abs((val.sample as SyncsSample).y - 1) > self.precision } repeat: {
+        await { self.ctx.clock.tick }
+    }
+    exec { val.heading -= Float.pi / 2 }
+    `while` { abs((val.sample as SyncsSample).x - 1) > self.precision } repeat: {
+        await { self.ctx.clock.tick }
+    }
+    exec { val.heading -= Float.pi / 2 }
+    `while` { abs((val.sample as SyncsSample).y - 0) > self.precision } repeat: {
+        await { self.ctx.clock.tick }
+    }
+    exec { val.heading -= Float.pi / 2 }
+    `while` { abs((val.sample as SyncsSample).x - 0) > self.precision } repeat: {
+        await { self.ctx.clock.tick }
+    }
+    exec { val.speed = Float(0) }
+}
+```
+For this and other demos which use the sensor, a sublcass of `DriveController` called `DriveWithSensorController` was created which runs the `Syncs.SensorStreamer` activity concurrently with the `DriveWithSensorController` activity defined by the specific the subclass (`SensorSquareMeterController` in the case of this demo).
