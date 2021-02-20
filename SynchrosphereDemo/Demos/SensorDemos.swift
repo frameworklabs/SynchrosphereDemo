@@ -5,6 +5,7 @@ import Synchrosphere
 import Pappe
 import RealModule
 
+/// Calculates the scalar velocity from the vx, vy vector.
 extension SyncsSample {
     var v: Float {
         Float.hypot(vx, vy)
@@ -182,7 +183,7 @@ struct WaypointList {
     
     func isAtEnd(at t: Float) -> Bool {
         let (a, b) = segment(at: t)
-        return a.i == b.i
+        return a.i == b.i && a.i > 0
     }
     
     func segment(at t: Float) -> (Waypoint, Waypoint) {
@@ -229,7 +230,7 @@ class SensorFollowPathController : DriveWithSensorController {
                     let t: Float = val.t
                     let dt = 1.0 / Float(self.ctx.config.tickFrequency)
 
-                    if wpl.isAtEnd(at: t + dt) {
+                    if wpl.isAtEnd(at: t) {
                         if self.logDetails {
                             self.ctx.logInfo("-----------------------")
                             self.ctx.logInfo("stopped at x: \(sample.x) y: \(sample.y)")
@@ -239,13 +240,11 @@ class SensorFollowPathController : DriveWithSensorController {
                     }
                                         
                     let lookaheadPos = wpl.pos(at: t + dt * self.lookaheadFactor)
-                    var dx = lookaheadPos.x - sample.x
-                    var dy = lookaheadPos.y - sample.y
-                    dx /= self.lookaheadFactor
-                    dy /= self.lookaheadFactor
+                    let dx = lookaheadPos.x - sample.x
+                    let dy = lookaheadPos.y - sample.y
                     
                     let heading = Float.atan2(y: -dx, x: dy)
-                    let distance = Float.hypot(dx, dy)
+                    let distance = Float.hypot(dx, dy) / self.lookaheadFactor
                     let velocity = distance / dt
                     let speed = min(velocity * 1.0, 1.0)
                     

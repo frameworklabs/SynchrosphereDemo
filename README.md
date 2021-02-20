@@ -167,7 +167,7 @@ activity (name.Main, []) { val in
     await { false }
 }
 ```
-The `await { false }` statement at the bottom will stop the control flow from proceeding as the condition will never become true obviously. It is prsent here to see that depending on when you hit "q", the led will either be on or off as you either preempt in the on or off phase of the blinking. The next demo will ensure that the led will always be off when blinking is preempted.
+The `await { false }` statement at the bottom will stop the control flow from proceeding as the condition will never become true obviously. It is present here to see that depending on when you hit "q", the led will either be on or off as you either preempt in the on or off phase of the blinking. The next demo will ensure that the led will always be off when blinking is preempted.
 
 #### IO - Preempt with Defer
 
@@ -803,19 +803,17 @@ activity (name.DriveWithSensorController, [name.sample], [name.speed, name.headi
         let t: Float = val.t
         let dt = 1.0 / Float(self.ctx.config.tickFrequency)
 
-        if wpl.isAtEnd(at: t + dt) {
+        if wpl.isAtEnd(at: t) {
             val.speed = Float(0)
             return
         }
                             
         let lookaheadPos = wpl.pos(at: t + dt * self.lookaheadFactor)
-        var dx = lookaheadPos.x - sample.x
-        var dy = lookaheadPos.y - sample.y
-        dx /= self.lookaheadFactor
-        dy /= self.lookaheadFactor
+        let dx = lookaheadPos.x - sample.x
+        let dy = lookaheadPos.y - sample.y
         
         let heading = Float.atan2(y: -dx, x: dy)
-        let distance = Float.hypot(dx, dy)
+        let distance = Float.hypot(dx, dy) / self.lookaheadFactor
         let velocity = distance / dt
         let speed = min(velocity * 1.0, 1.0)
                     
@@ -829,7 +827,7 @@ First, the `WaypointList` is built up and stored in a variable - it could also b
 
 Then, on every clock tick, we determine the `lookaheadPos` from the current time which acts as the carrot to chase for the robot. From this position we subtract the current position given by the latest sensor sample and get a resulting delta vector (dx and dy). From this delta vector we calculate the new heading (using arctan) and speed (by assuming a 1:1 relationship between normalized speed and m/s). 
 
-When the end of the waypoint list is detected for the next time-step, the robots speed is set explcitly to 0 to prevent it to move if the sensor readings oscillate. 
+When the end of the waypoint list is detected, the robots' speed is set explcitly to 0 to prevent it to move if the sensor readings oscillate. 
 
 #### Sensor - My Demo
 
