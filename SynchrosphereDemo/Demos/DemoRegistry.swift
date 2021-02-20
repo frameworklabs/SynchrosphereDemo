@@ -28,6 +28,8 @@ enum Demo : String, CaseIterable, Identifiable {
     case driveMyDemo = "Drive - My Demo"
     case sensorLogSamples = "Sensor - Log Samples"
     case sensorSquareMeter = "Sensor - Square Meter"
+    case sensorFollowPath = "Sensor - Follow Path"
+    case sensorMyDemo = "Sensor - My Demo"
     
     var id: Demo {
         return self
@@ -97,6 +99,10 @@ extension Demo {
             return .controller(SensorLogSamplesController())
         case .sensorSquareMeter:
             return .controller(SensorSquareMeterController())
+        case .sensorFollowPath:
+            return .controller(SensorFollowPathController())
+        case .sensorMyDemo:
+            return .controller(SensorMyDemoController())
         }
     }
 }

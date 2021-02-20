@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		68457FE925DB4DC700EA37E7 /* Synchrosphere in Frameworks */ = {isa = PBXBuildFile; productRef = 68457FE825DB4DC700EA37E7 /* Synchrosphere */; };
+		6881F40025DF4F5700A7F435 /* RealModule in Frameworks */ = {isa = PBXBuildFile; productRef = 6881F3FF25DF4F5700A7F435 /* RealModule */; };
 		68E8BD4925B6502800B41C43 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 68E8BD4825B6502800B41C43 /* Assets.xcassets */; };
 		68E8BD7225B6530000B41C43 /* KeyEventView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68E8BD6B25B652FF00B41C43 /* KeyEventView.swift */; };
 		68E8BD7425B6530000B41C43 /* LED.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68E8BD6D25B6530000B41C43 /* LED.swift */; };
@@ -43,6 +44,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6881F40025DF4F5700A7F435 /* RealModule in Frameworks */,
 				68457FE925DB4DC700EA37E7 /* Synchrosphere in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -120,6 +122,7 @@
 			name = SynchrosphereDemo;
 			packageProductDependencies = (
 				68457FE825DB4DC700EA37E7 /* Synchrosphere */,
+				6881F3FF25DF4F5700A7F435 /* RealModule */,
 			);
 			productName = SynchrosphereDemo;
 			productReference = 68E8BD4125B6502600B41C43 /* SynchrosphereDemo.app */;
@@ -150,6 +153,7 @@
 			mainGroup = 68E8BD3825B6502600B41C43;
 			packageReferences = (
 				68457FE725DB4DC700EA37E7 /* XCRemoteSwiftPackageReference "Synchrosphere" */,
+				6881F3FE25DF4F5700A7F435 /* XCRemoteSwiftPackageReference "swift-numerics" */,
 			);
 			productRefGroup = 68E8BD4225B6502600B41C43 /* Products */;
 			projectDirPath = "";
@@ -383,6 +387,14 @@
 				minimumVersion = 0.1.2;
 			};
 		};
+		6881F3FE25DF4F5700A7F435 /* XCRemoteSwiftPackageReference "swift-numerics" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-numerics";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.0.8;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -390,6 +402,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 68457FE725DB4DC700EA37E7 /* XCRemoteSwiftPackageReference "Synchrosphere" */;
 			productName = Synchrosphere;
+		};
+		6881F3FF25DF4F5700A7F435 /* RealModule */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6881F3FE25DF4F5700A7F435 /* XCRemoteSwiftPackageReference "swift-numerics" */;
+			productName = RealModule;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

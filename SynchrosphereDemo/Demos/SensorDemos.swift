@@ -3,10 +3,11 @@
 
 import Synchrosphere
 import Pappe
+import RealModule
 
 extension SyncsSample {
     var v: Float {
-        (vx * vx + vy * vy).squareRoot()
+        Float.hypot(vx, vy)
     }
 }
 
@@ -72,6 +73,9 @@ class DriveWithSensorController : DriveController {
                         }
                     }
                     strong {
+                        `while` { (val.sample as SyncsSample).sensors.isEmpty } repeat: {
+                            await { self.ctx.clock.tick }
+                        }
                         run (name.DriveWithSensorController, [val.sample], [val.loc.speed, val.loc.heading])
                     }
                 }
@@ -118,6 +122,160 @@ class SensorSquareMeterController : DriveWithSensorController {
                     await { self.ctx.clock.tick }
                 }
                 exec { val.speed = Float(0) }
+            }
+        }
+    }
+}
+
+/// Information about a waypoint.
+struct Waypoint {
+    let x: Float
+    let y: Float
+    let t: Float
+    var i: Int = -1
+}
+
+/// A list of `Waypoints`.
+struct WaypointList {
+    private var points: [Waypoint] = [Waypoint(x: 0, y: 0, t: 0, i: 0)]
+    private var t: Float = 0
+    
+    mutating func append(_ wp: Waypoint) {
+        var wp = wp
+        wp.i = points.count
+        points.append(wp)
+    }
+    
+    mutating func appendWaypointAt(x: Float, y: Float, withSpeed v: Float) {
+        precondition(v > 0, "v needs to be > 0")
+        let last = points.last!
+        let dx = x - last.x
+        let dy = y - last.y
+        let dist = Float.hypot(dx, dy)
+        let dt = dist / v
+        t += dt
+        append(Waypoint(x: x, y: y, t: t))
+    }
+
+    func pos(at t: Float) -> (x: Float, y: Float) {
+        let (wps, wpe) = segment(at: t)
+        
+        let xs = wps.x
+        let ys = wps.y
+        
+        if wps.i == wpe.i {
+            return (xs, ys)
+        }
+
+        let ts = wps.t
+        let te = wpe.t
+
+        let dt = te - ts
+        assert(abs(dt) > Float.ulpOfOne)
+        let f = (t - ts) / dt
+        
+        let x = xs + f * (wpe.x - xs)
+        let y = ys + f * (wpe.y - ys)
+                
+        return (x, y)
+    }
+    
+    func isAtEnd(at t: Float) -> Bool {
+        let (a, b) = segment(at: t)
+        return a.i == b.i
+    }
+    
+    func segment(at t: Float) -> (Waypoint, Waypoint) {
+        precondition(!points.isEmpty)
+        if t == 0 {
+            return (points[0], points[0])
+        }
+        for i in 1..<points.count {
+            if t <= points[i].t {
+                return (points[i - 1], points[i])
+            }
+        }
+        return (points.last!, points.last!)
+    }
+}
+
+/// A demo where the robot follows a triangular path.
+class SensorFollowPathController : DriveWithSensorController {
+    let lookaheadFactor: Float
+    let logDetails: Bool
+    
+    init(lookaheadFactor: Float = 4, logDetails: Bool = false) {
+        self.lookaheadFactor = lookaheadFactor
+        self.logDetails = logDetails
+        super.init(sensors: [.location], logSamples: false)
+    }
+    
+    override func makeDriveWithSensorModule() -> Module {
+        Module { name in
+            
+            activity (name.DriveWithSensorController, [name.sample], [name.speed, name.heading]) { val in
+                exec {
+                    var wpl = WaypointList()
+                    wpl.appendWaypointAt(x: 1, y: 1, withSpeed: 0.5)
+                    wpl.appendWaypointAt(x: 1, y: 0, withSpeed: 0.5)
+                    wpl.appendWaypointAt(x: 0, y: 0, withSpeed: 0.5)
+                    
+                    val.wpl = wpl
+                    val.t = Float(0)
+                }
+                nowAndEvery { self.ctx.clock.tick } do: {
+                    let sample: SyncsSample = val.sample
+                    let wpl: WaypointList = val.wpl
+                    let t: Float = val.t
+                    let dt = 1.0 / Float(self.ctx.config.tickFrequency)
+
+                    if wpl.isAtEnd(at: t + dt) {
+                        if self.logDetails {
+                            self.ctx.logInfo("-----------------------")
+                            self.ctx.logInfo("stopped at x: \(sample.x) y: \(sample.y)")
+                        }
+                        val.speed = Float(0)
+                        return
+                    }
+                                        
+                    let lookaheadPos = wpl.pos(at: t + dt * self.lookaheadFactor)
+                    var dx = lookaheadPos.x - sample.x
+                    var dy = lookaheadPos.y - sample.y
+                    dx /= self.lookaheadFactor
+                    dy /= self.lookaheadFactor
+                    
+                    let heading = Float.atan2(y: -dx, x: dy)
+                    let distance = Float.hypot(dx, dy)
+                    let velocity = distance / dt
+                    let speed = min(velocity * 1.0, 1.0)
+                    
+                    if self.logDetails {
+                        self.ctx.logInfo("-----------------------")
+                        self.ctx.logInfo("x: \(sample.x) y: \(sample.y)")
+                        self.ctx.logInfo("lx: \(lookaheadPos.x) ly: \(lookaheadPos.y)")
+                        self.ctx.logInfo("dx: \(dx) dy: \(dy)")
+                        self.ctx.logInfo("hd: \(val.heading as Float) spd: \(val.speed as Float)")
+                        self.ctx.logInfo("hd': \(heading) spd': \(speed)")
+                    }
+                        
+                    val.t = t + dt
+                    val.heading = heading
+                    val.speed = speed
+                }
+            }
+        }
+    }
+}
+
+/// This is a playground demo for your own sensor drive experiments.
+class SensorMyDemoController : DriveWithSensorController {
+    override func makeDriveWithSensorModule() -> Module {
+        Module { name in
+            
+            activity (name.DriveWithSensorController, [name.sample], [name.speed, name.heading]) { val in
+                // Replace these lines with your control code!
+                exec { self.ctx.logInfo("My Demo") }
+                await { false }
             }
         }
     }

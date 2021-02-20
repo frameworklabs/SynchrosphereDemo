@@ -781,3 +781,62 @@ activity (name.DriveWithSensorController, [name.sample], [name.speed, name.headi
 }
 ```
 For this and other demos which use the sensor, a sublcass of `DriveController` called `DriveWithSensorController` was created which runs the `Syncs.SensorStreamer` activity concurrently with the `DriveWithSensorController` activity defined by the specific the subclass (`SensorSquareMeterController` in the case of this demo).
+
+#### Sensor - Follow Path
+
+In this last demo, the robot will follow a path given by a list of waypoints. On every tick of the clock, the robots' speed and heading is adjusted to reach a point on the trajectory which is a few time-steps ahead. The algorighm is a variant of the Pure Pursuit Controller algorithm but uses as lookahead a position defined by time and not by location of the robot. The details of algorithm can be seen in the code, but the general outline is like this:
+
+```Swift
+activity (name.DriveWithSensorController, [name.sample], [name.speed, name.heading]) { val in
+    exec {
+        var wpl = WaypointList()
+        wpl.appendWaypointAt(x: 1, y: 1, withSpeed: 0.5)
+        wpl.appendWaypointAt(x: 1, y: 0, withSpeed: 0.5)
+        wpl.appendWaypointAt(x: 0, y: 0, withSpeed: 0.5)
+        
+        val.wpl = wpl
+        val.t = Float(0)
+    }
+    nowAndEvery { self.ctx.clock.tick } do: {
+        let sample: SyncsSample = val.sample
+        let wpl: WaypointList = val.wpl
+        let t: Float = val.t
+        let dt = 1.0 / Float(self.ctx.config.tickFrequency)
+
+        if wpl.isAtEnd(at: t + dt) {
+            val.speed = Float(0)
+            return
+        }
+                            
+        let lookaheadPos = wpl.pos(at: t + dt * self.lookaheadFactor)
+        var dx = lookaheadPos.x - sample.x
+        var dy = lookaheadPos.y - sample.y
+        dx /= self.lookaheadFactor
+        dy /= self.lookaheadFactor
+        
+        let heading = Float.atan2(y: -dx, x: dy)
+        let distance = Float.hypot(dx, dy)
+        let velocity = distance / dt
+        let speed = min(velocity * 1.0, 1.0)
+                    
+        val.t = t + dt
+        val.heading = heading
+        val.speed = speed
+    }
+}
+```	
+First, the `WaypointList` is built up and stored in a variable - it could also be stored as instance variable of the Demo class as it does not change from run to run.
+
+Then, on every clock tick, we determine the `lookaheadPos` from the current time which acts as the carrot to chase for the robot. From this position we subtract the current position given by the latest sensor sample and get a resulting delta vector (dx and dy). From this delta vector we calculate the new heading (using arctan) and speed (by assuming a 1:1 relationship between normalized speed and m/s). 
+
+When the end of the waypoint list is detected for the next time-step, the robots speed is set explcitly to 0 to prevent it to move if the sensor readings oscillate. 
+
+#### Sensor - My Demo
+
+This is a playground demo for your own sensor drive experiments.
+
+If you like, use this already registered demo to drive around your Sphero robot with sensor streaming enabled.
+
+## Summary
+
+Synchrosphere allows you to program your Sphero robot in a Swift DSL which simplifies robotic programming tasks by supporting modular concurrency and preemption constructs enabled by the synchronous programming paradigm.  
