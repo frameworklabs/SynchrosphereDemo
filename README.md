@@ -87,7 +87,7 @@ class IOHelloController : DemoController {
 
 #### IO - Sub Activity
 
-In this demo, the code responsible for continous blinking is moved to a separate activity and called by the main activity. The new sub-activity is parameterized by color and period.
+In this demo, the code responsible for continuous blinking is moved to a separate activity and called by the main activity. The new sub-activity is parameterized by color and period.
 
 ```Swift
 activity (name.Blink, [name.color, name.periodMillis]) { val in
@@ -155,7 +155,7 @@ activity (name.Main, []) { val in
 
 #### IO - Preempt on Input
 
-Here, we want the blink activity to stop when we press a key. A running activity can be preempted by the `when ... abort: ...` statement. When the conditon becomes true, the body will immediately be stopped and control flow continues with the next statement after the preemption statement.
+Here, we want the blink activity to stop when we press a key. A running activity can be preempted by the `when ... abort: ...` statement. When the condition becomes true, the body will immediately be stopped and control flow continues with the next statement after the preemption statement.
 
 ```Swift
 activity (name.Main, []) { val in
@@ -193,7 +193,7 @@ Note, that we pass the request object to the activity as argument, as imported m
 
 #### IO - Query Color
 
-Let's say we want to query a color from the user before we start blinking the led in that color. For this we create an activty which returns the color chosen from hitting either r, g, or b on the keyboard:
+Let's say we want to query a color from the user before we start blinking the led in that color. For this we create an activity which returns the color chosen from hitting either r, g, or b on the keyboard:
 
 ```Swift
 activity (name.QueryColor, []) { val in
@@ -226,7 +226,7 @@ Again, we assign the returned value to a local variable so that it can be used f
 
 #### IO - Concurrent Trails
 
-Now, instead of chosing the color only at the start, this demo shows how it can be changed while the led is blinking.
+Now, instead of choosing the color only at the start, this demo shows how it can be changed while the led is blinking.
 
 As running the blink activity is blocking the current thread (or current trail as we say), we need a construct which allows to open a concurrent trail where the color selection can happen. This construct is called `cobegin`:
 
@@ -342,7 +342,7 @@ activity (name.Main, []) { val in
                 `repeat` {
                     exec {
                         let remaining: Int = val.remaining
-                        ctx.logInfo("\(remaining)s remainging time")
+                        ctx.logInfo("\(remaining)s remaining time")
                         val.remaining -= 1
                     }
                     run (Syncs.WaitSeconds, [1])
@@ -414,7 +414,7 @@ cobegin {
     }
 }    
 ```
-You could also think of this as the definition of a net of communicating components with the output ports of the `QueryColor` and `QueryPeriod` componets connected to corresponding input ports of the `Blink` component:
+You could also think of this as the definition of a net of communicating components with the output ports of the `QueryColor` and `QueryPeriod` components connected to corresponding input ports of the `Blink` component:
 ```
 QueryColor >  ____
                   \____ > Blink
@@ -444,7 +444,7 @@ activity (name.Main, []) { val in
     await { false }
 }
 ```
-First, we turn the back LED on to see the current orientation of the robot. The back led shows in the oppositite direction than the current heading. Then, we issue a command to roll the robot forward with speed 100 and heading 0. The `await` statement at the end will prevent the demo from finishing automatically.
+First, we turn the back LED on to see the current orientation of the robot. The back led shows in the opposite direction than the current heading. Then, we issue a command to roll the robot forward with speed 100 and heading 0. The `await` statement at the end will prevent the demo from finishing automatically.
 
 You will notice, that the robot will roll for 2 seconds before it stops. This is expected and a standard approach in robotics. To prevent that a robot continues to move when communication between control and actuator is broken, the robots actuator will stop when it doesn't get new commands from its control for a defined duration.
 
@@ -504,7 +504,7 @@ The body of the activity consists of two concurrent trails - one for obtaining t
 
 With `ctx.clock.tick` we issue roll commands to the robot at the frequency of the clock - which is configurable via the `tickFrequency` property of `SyncsControllerConfig` which is 10 Hz by default. This is short enough so that we don't need to use the `RollForSeconds` command here.
 
-`QueryInput` is structured equivalently to the way we continously queried the user for a color or period in the IO Demos. The only complication here is that the `Roll` activities input parameter domains are very restricted - the heading has to be given in unsigned integer degrees from 0 to 359. The next demo will simplify things in this regard.
+`QueryInput` is structured equivalently to the way we continuously queried the user for a color or period in the IO Demos. The only complication here is that the `Roll` activities input parameter domains are very restricted - the heading has to be given in unsigned integer degrees from 0 to 359. The next demo will simplify things in this regard.
 
 #### Drive - Normalized Manual Mode
 
@@ -554,7 +554,7 @@ activity (name.Actuator, [name.speed, name.heading]) { val in
 }
 ```
 
-This brings us to this component view for the demo (whith square brackets indicating the Actuator Sub-Component):
+This brings us to this component view for the demo (with square brackets indicating the Actuator Sub-Component):
 
 ```
 ManuallController > ---- > [ SpeedAndHeaddingConverter > ---- > RollController ]
@@ -565,6 +565,7 @@ The `RollController` takes care of calling `Syncs.Roll` when input values have c
 ```Swift
 activity (name.RollController, [name.speed, name.heading, name.dir]) { val in
     `defer` { ctx.requests.stopRoll(towards: val.heading) }
+    
     when {  val.prevSpeed != val.speed as SyncsSpeed
             || val.prevHeading != val.heading as SyncsHeading
             || val.prevDir != val.dir as SyncsDir } reset: {
@@ -575,6 +576,7 @@ activity (name.RollController, [name.speed, name.heading, name.dir]) { val in
         }
         `repeat` {
             run (Syncs.Roll, [val.speed, val.heading, val.dir])
+            
             `if` { val.speed as SyncsSpeed == 0 } then: {
                 await { false }
             } else: {
@@ -612,7 +614,7 @@ activity (name.Actuator, [name.speed, name.heading]) { val in
 }
 ```
 
-So, the rolling is extended with the aspect of blinking here. The synchronous programming model allows this kind of Aspect-oriented prrogramming (AOP) as the synchronization points pose as general join-points where a program can be extended with code to run before and after it at every step.
+So, the rolling is extended with the aspect of blinking here. The synchronous programming model allows this kind of Aspect-oriented programming (AOP) as the synchronization points pose as general join-points where a program can be extended with code to run before and after it at every step.
 
 The modularity possible by the synchronous programming style prevents you from conflating different aspects like rolling and blinking into one place. Imagine how complex and convoluted this combined behavior would be in a traditional environment.
 
@@ -646,8 +648,10 @@ Blinking itself uses a little helper enum (`LEDMode`) to detect mode changes as 
 ```Swift
 activity (name.Blink, [name.col, name.period, name.requests]) { val in
     `defer` { (val.requests as SyncsRequests).setMainLED(to: .black) }
+    
     when { LEDMode.make(from: val.period) != val.prevMode } reset: {
         exec { val.prevMode = LEDMode.make(from: val.period) }
+        
         `if` { val.prevMode == LEDMode.steady } then: {
             run (Syncs.SetMainLED, [val.col])
             await { false }
@@ -700,7 +704,7 @@ activity (name.DriveController, [], [name.speed, name.heading]) { val in
         val.heading = Float(0)
     }
     every { self.context.clock.tick } do: {
-        exec { val.heading += val.deltaRad as Float }
+        val.heading += val.deltaRad as Float
     }
 }
 ```
@@ -748,7 +752,7 @@ activity (name.DriveController, [], [name.speed, name.heading]) { val in
 ```
 Note, how we have to pass the set of sensors to be enabled as using an array literal directly would confuse the parameter passing here.
 
-To orient the coordinate system in the direction of the heading, we set the locator flags to reset the orientation first and reset the heading after that. The positive y axis then points down in the direciton of the heading. The perpendicular x axis grows to the right.
+To orient the coordinate system in the direction of the heading, we set the locator flags to reset the orientation first and reset the heading after that. The positive y axis then points down in the direction of the heading. The perpendicular x axis grows to the right.
 
 In this demo, the y-velocity (in meter per second) and y-location (in meter) will be the changing values whereas the yaw (in degrees) and the x-values will mostly be zero.  
 
@@ -780,11 +784,11 @@ activity (name.DriveWithSensorController, [name.sample], [name.speed, name.headi
     exec { val.speed = Float(0) }
 }
 ```
-For this and other demos which use the sensor, a sublcass of `DriveController` called `DriveWithSensorController` was created which runs the `Syncs.SensorStreamer` activity concurrently with the `DriveWithSensorController` activity defined by the specific the subclass (`SensorSquareMeterController` in the case of this demo).
+For this and other demos which use the sensor, a subclass of `DriveController` called `DriveWithSensorController` was created which runs the `Syncs.SensorStreamer` activity concurrently with the `DriveWithSensorController` activity defined by the specific the subclass (`SensorSquareMeterController` in the case of this demo).
 
 #### Sensor - Follow Path
 
-In this last demo, the robot will follow a path given by a list of waypoints. On every tick of the clock, the robots' speed and heading is adjusted to reach a point on the trajectory which is a few time-steps ahead. The algorighm is a variant of the Pure Pursuit Controller algorithm but uses as lookahead a position defined by time and not by location of the robot. The details of algorithm can be seen in the code, but the general outline is like this:
+In this last demo, the robot will follow a path given by a list of waypoints. On every tick of the clock, the robots' speed and heading is adjusted to reach a point on the trajectory which is a few time-steps ahead. The algorithm is a variant of the Pure Pursuit Controller algorithm but uses as lookahead a position defined by time and not by location of the robot. The details of algorithm can be seen in the code, but the general outline is like this:
 
 ```Swift
 activity (name.DriveWithSensorController, [name.sample], [name.speed, name.heading]) { val in
@@ -827,7 +831,7 @@ First, the `WaypointList` is built up and stored in a variable - it could also b
 
 Then, on every clock tick, we determine the `lookaheadPos` from the current time which acts as the carrot to chase for the robot. From this position we subtract the current position given by the latest sensor sample and get a resulting delta vector (dx and dy). From this delta vector we calculate the new heading (using arctan) and speed (by assuming a 1:1 relationship between normalized speed and m/s). 
 
-When the end of the waypoint list is detected, the robots' speed is set explcitly to 0 to prevent it to move if the sensor readings oscillate. 
+When the end of the waypoint list is detected, the robots' speed is set explicitly to 0 to prevent it to move if the sensor readings oscillate. 
 
 #### Sensor - My Demo
 

@@ -185,6 +185,7 @@ let rollControllerModule = Module { name in
     
     activity (name.RollController, [name.speed, name.heading, name.dir, name.requests]) { val in
         `defer` { (val.requests as SyncsRequests).stopRoll(towards: val.heading) }
+        
         when {  val.prevSpeed != val.speed as SyncsSpeed
                 || val.prevHeading != val.heading as SyncsHeading
                 || val.prevDir != val.dir as SyncsDir } reset: {
@@ -195,6 +196,7 @@ let rollControllerModule = Module { name in
             }
             `repeat` {
                 run (Syncs.Roll, [val.speed, val.heading, val.dir])
+                
                 `if` { val.speed as SyncsSpeed == 0 } then: {
                     await { false }
                 } else: {

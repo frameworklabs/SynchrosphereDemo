@@ -365,7 +365,7 @@ class IOFinalController : DemoController {
                             `repeat` {
                                 exec {
                                     let remaining: Int = val.remaining
-                                    ctx.logInfo("\(remaining)s remainging time")
+                                    ctx.logInfo("\(remaining)s remaining time")
                                     val.remaining -= 1
                                 }
                                 run (Syncs.WaitSeconds, [1])
