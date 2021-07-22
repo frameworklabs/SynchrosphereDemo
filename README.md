@@ -10,7 +10,7 @@ It can be also used as a kind of a playground, to easily add new robot behaviors
 
 ## Usage
 
-Compile and Run the app. A window will appear which lets you select from available demos in a drop-down box. Pressing the start button will run the selected demo. Because Bluetooth is used for communicating with the Sphero robot, a system dialog will pop-up every time you start the app to get your consent to use Bluetooth from this app.
+Compile and Run the app. A window will appear which lets you select a robot type and available demos in drop-down boxes. Pressing the start button will run the selected demo. Because Bluetooth is used for communicating with the Sphero robot, a system dialog will pop-up every time you start the app to get your consent to use Bluetooth from this app.
 
 In the middle part of the window, log output will be displayed.
 The bottom part depicts the overall state of the robot by indicators which turn red on individual conditions. Tooltips will give an explanation of the different conditions.
@@ -794,37 +794,59 @@ In this last demo, the robot will follow a path given by a list of waypoints. On
 activity (name.DriveWithSensorController, [name.sample], [name.speed, name.heading]) { val in
     exec {
         var wpl = WaypointList()
-        wpl.appendWaypointAt(x: 1, y: 1, withSpeed: 0.5)
-        wpl.appendWaypointAt(x: 1, y: 0, withSpeed: 0.5)
+        // figure 8
+        wpl.appendWaypointAt(x: -0.7, y: 0.5, withSpeed: 0.5)
+        wpl.appendWaypointAt(x: 0.7, y: 1, withSpeed: 0.5)
+        wpl.appendWaypointAt(x: 0, y: 1.5, withSpeed: 0.5)
+        wpl.appendWaypointAt(x: -0.7, y: 1, withSpeed: 0.5)
+        wpl.appendWaypointAt(x: 0.7, y: 0.5, withSpeed: 0.5)
         wpl.appendWaypointAt(x: 0, y: 0, withSpeed: 0.5)
-        
+
         val.wpl = wpl
         val.t = Float(0)
+        val.done = false
     }
-    nowAndEvery { self.ctx.clock.tick } do: {
-        let sample: SyncsSample = val.sample
-        let wpl: WaypointList = val.wpl
-        let t: Float = val.t
-        let dt = 1.0 / Float(self.ctx.config.tickFrequency)
+    when { val.done } abort: {
+        nowAndEvery { self.ctx.clock.tick } do: {
+            let sample: SyncsSample = val.sample
+            let wpl: WaypointList = val.wpl
+            let t: Float = val.t
+            let dt = 1.0 / Float(self.ctx.config.tickFrequency)
 
-        if wpl.isAtEnd(at: t) {
-            val.speed = Float(0)
-            return
+            if wpl.isAtEnd(at: t) {
+                if self.logDetails {
+                    self.ctx.logInfo("-----------------------")
+                    self.ctx.logInfo("stopped at x: \(sample.x) y: \(sample.y)")
+                }
+                val.speed = Float(0)
+                val.done = true
+                return
+            }
+                                
+            let lookaheadPos = wpl.pos(at: t + dt * self.lookaheadFactor)
+            let dx = lookaheadPos.x - sample.x
+            let dy = lookaheadPos.y - sample.y
+            
+            let heading = Float.atan2(y: -dx, x: dy)
+            let distance = Float.hypot(dx, dy) / self.lookaheadFactor
+            let velocity = distance / dt
+            let speed = min(velocity * 1.0, 1.0)
+            
+            if self.logDetails {
+                self.ctx.logInfo("-----------------------")
+                self.ctx.logInfo("x: \(sample.x) y: \(sample.y)")
+                self.ctx.logInfo("lx: \(lookaheadPos.x) ly: \(lookaheadPos.y)")
+                self.ctx.logInfo("dx: \(dx) dy: \(dy)")
+                self.ctx.logInfo("hd: \(val.heading as Float) spd: \(val.speed as Float)")
+                self.ctx.logInfo("hd': \(heading) spd': \(speed)")
+            }
+                
+            val.t = t + dt
+            val.heading = heading
+            val.speed = speed
         }
-                            
-        let lookaheadPos = wpl.pos(at: t + dt * self.lookaheadFactor)
-        let dx = lookaheadPos.x - sample.x
-        let dy = lookaheadPos.y - sample.y
-        
-        let heading = Float.atan2(y: -dx, x: dy)
-        let distance = Float.hypot(dx, dy) / self.lookaheadFactor
-        let velocity = distance / dt
-        let speed = min(velocity * 1.0, 1.0)
-                    
-        val.t = t + dt
-        val.heading = heading
-        val.speed = speed
     }
+    exec { self.ctx.logInfo("Done") }
 }
 ```	
 First, the `WaypointList` is built up and stored in a variable - it could also be stored as instance variable of the Demo class as it does not change from run to run.

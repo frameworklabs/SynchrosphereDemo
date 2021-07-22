@@ -20,8 +20,9 @@ class SensorLogSamplesController : DriveController {
             
             activity (name.DriveController, [], [name.speed, name.heading]) { val in
                 run (Syncs.SetLocatorFlags, [SyncsLocatorFlags.resetOrientation])
+                run (Syncs.ResetLocator, [])
                 run (Syncs.ResetHeading, [])
-                
+
                 exec { val.sample = SyncsSample.unset }
                 cobegin {
                     strong {
@@ -59,6 +60,7 @@ class DriveWithSensorController : DriveController {
             
             activity (name.DriveController, [], [name.speed, name.heading]) { val in
                 run (Syncs.SetLocatorFlags, [SyncsLocatorFlags.resetOrientation])
+                run (Syncs.ResetLocator, [])
                 run (Syncs.ResetHeading, [])
                 
                 exec { val.sample = SyncsSample.unset }
@@ -217,50 +219,59 @@ class SensorFollowPathController : DriveWithSensorController {
             activity (name.DriveWithSensorController, [name.sample], [name.speed, name.heading]) { val in
                 exec {
                     var wpl = WaypointList()
-                    wpl.appendWaypointAt(x: 1, y: 1, withSpeed: 0.5)
-                    wpl.appendWaypointAt(x: 1, y: 0, withSpeed: 0.5)
+                    // figure 8
+                    wpl.appendWaypointAt(x: -0.7, y: 0.5, withSpeed: 0.5)
+                    wpl.appendWaypointAt(x: 0.7, y: 1, withSpeed: 0.5)
+                    wpl.appendWaypointAt(x: 0, y: 1.5, withSpeed: 0.5)
+                    wpl.appendWaypointAt(x: -0.7, y: 1, withSpeed: 0.5)
+                    wpl.appendWaypointAt(x: 0.7, y: 0.5, withSpeed: 0.5)
                     wpl.appendWaypointAt(x: 0, y: 0, withSpeed: 0.5)
-                    
+
                     val.wpl = wpl
                     val.t = Float(0)
+                    val.done = false
                 }
-                nowAndEvery { self.ctx.clock.tick } do: {
-                    let sample: SyncsSample = val.sample
-                    let wpl: WaypointList = val.wpl
-                    let t: Float = val.t
-                    let dt = 1.0 / Float(self.ctx.config.tickFrequency)
+                when { val.done } abort: {
+                    nowAndEvery { self.ctx.clock.tick } do: {
+                        let sample: SyncsSample = val.sample
+                        let wpl: WaypointList = val.wpl
+                        let t: Float = val.t
+                        let dt = 1.0 / Float(self.ctx.config.tickFrequency)
 
-                    if wpl.isAtEnd(at: t) {
+                        if wpl.isAtEnd(at: t) {
+                            if self.logDetails {
+                                self.ctx.logInfo("-----------------------")
+                                self.ctx.logInfo("stopped at x: \(sample.x) y: \(sample.y)")
+                            }
+                            val.speed = Float(0)
+                            val.done = true
+                            return
+                        }
+                                            
+                        let lookaheadPos = wpl.pos(at: t + dt * self.lookaheadFactor)
+                        let dx = lookaheadPos.x - sample.x
+                        let dy = lookaheadPos.y - sample.y
+                        
+                        let heading = Float.atan2(y: -dx, x: dy)
+                        let distance = Float.hypot(dx, dy) / self.lookaheadFactor
+                        let velocity = distance / dt
+                        let speed = min(velocity * 1.0, 1.0)
+                        
                         if self.logDetails {
                             self.ctx.logInfo("-----------------------")
-                            self.ctx.logInfo("stopped at x: \(sample.x) y: \(sample.y)")
+                            self.ctx.logInfo("x: \(sample.x) y: \(sample.y)")
+                            self.ctx.logInfo("lx: \(lookaheadPos.x) ly: \(lookaheadPos.y)")
+                            self.ctx.logInfo("dx: \(dx) dy: \(dy)")
+                            self.ctx.logInfo("hd: \(val.heading as Float) spd: \(val.speed as Float)")
+                            self.ctx.logInfo("hd': \(heading) spd': \(speed)")
                         }
-                        val.speed = Float(0)
-                        return
+                            
+                        val.t = t + dt
+                        val.heading = heading
+                        val.speed = speed
                     }
-                                        
-                    let lookaheadPos = wpl.pos(at: t + dt * self.lookaheadFactor)
-                    let dx = lookaheadPos.x - sample.x
-                    let dy = lookaheadPos.y - sample.y
-                    
-                    let heading = Float.atan2(y: -dx, x: dy)
-                    let distance = Float.hypot(dx, dy) / self.lookaheadFactor
-                    let velocity = distance / dt
-                    let speed = min(velocity * 1.0, 1.0)
-                    
-                    if self.logDetails {
-                        self.ctx.logInfo("-----------------------")
-                        self.ctx.logInfo("x: \(sample.x) y: \(sample.y)")
-                        self.ctx.logInfo("lx: \(lookaheadPos.x) ly: \(lookaheadPos.y)")
-                        self.ctx.logInfo("dx: \(dx) dy: \(dy)")
-                        self.ctx.logInfo("hd: \(val.heading as Float) spd: \(val.speed as Float)")
-                        self.ctx.logInfo("hd': \(heading) spd': \(speed)")
-                    }
-                        
-                    val.t = t + dt
-                    val.heading = heading
-                    val.speed = speed
                 }
+                exec { self.ctx.logInfo("Done") }
             }
         }
     }

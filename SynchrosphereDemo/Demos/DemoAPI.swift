@@ -47,3 +47,12 @@ class Input {
         key = ""
     }
 }
+
+func SyncsAdjSpeed(_ spd: SyncsSpeed, _ conf: SyncsControllerConfig) -> SyncsSpeed {
+    if conf.deviceSelector == .anyRVR {
+        return SyncsSpeed(Float(spd) * 0.2)
+    }
+    else {
+        return spd
+    }
+}

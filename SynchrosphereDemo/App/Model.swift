@@ -9,7 +9,8 @@ import Foundation
 ///
 /// Creates, starts and stopps the current demo. Provides the state of the demo to the UI.
 class Model: ObservableObject {
-    
+
+    @Published var selectedRobot = Robot.rvr
     @Published var selectedDemo = Demo.ioHello
     
     @Published var isRunning = false
@@ -31,11 +32,12 @@ class Model: ObservableObject {
         
     private let engine = SyncsEngine()
     private let input = Input()
-    private var config = SyncsControllerConfig(deviceSelector: .anyMini)
+    private var config: SyncsControllerConfig!
     private var demoController: DemoController?
     private var syncsController: SyncsController?
 
-    init() {
+    func makeConfig() {
+        config = SyncsControllerConfig(deviceSelector: selectedRobot.deviceSelector)
         config.stateDidChangeCallback = { [unowned self] state in
             self.isRunning = state.contains(.isRunning)
             self.isBluetoothAvailable = state.contains(.isBluetoothAvailable)
@@ -60,6 +62,7 @@ class Model: ObservableObject {
         logLines.removeAll()
 
         demoController = selectedDemo.demoFactory.demoController
+        makeConfig()
         syncsController = demoController?.makeSyncsController(engine: engine, config: config, input: input)
         
         if let explanation = demoController?.explanation {
@@ -80,6 +83,22 @@ class Model: ObservableObject {
         ctrl.context.logInfo("key pressed: \(keyCharacters)")
         input.key = keyCharacters
         ctrl.context.tick()
+    }
+}
+
+enum Robot : String, CaseIterable, Identifiable {
+    case rvr = "RVR"
+    case mini = "Mini"
+    
+    var id: Robot {
+        return self
+    }
+    
+    var deviceSelector: SyncsDeviceSelector {
+        switch self {
+        case .rvr: return .anyRVR
+        case .mini: return .anyMini
+        }
     }
 }
 

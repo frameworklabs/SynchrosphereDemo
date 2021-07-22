@@ -11,7 +11,7 @@ func driveRollAheadFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, 
         
         activity (name.Main, []) { val in
             run (Syncs.SetBackLED, [SyncsBrightness(255)])
-            run (Syncs.Roll, [SyncsSpeed(100), SyncsHeading(0), SyncsDir.forward])
+            run (Syncs.Roll, [SyncsAdjSpeed(100, config), SyncsHeading(0), SyncsDir.forward])
             await { false }
         }
     }
@@ -24,9 +24,9 @@ func driveRollAheadAndBackFunc(_ engine: SyncsEngine, _ config: SyncsControllerC
         activity (name.Main, []) { val in
             `repeat` {
                 run (Syncs.SetBackLED, [SyncsBrightness(255)])
-                run (Syncs.RollForSeconds, [SyncsSpeed(100), SyncsHeading(0), SyncsDir.forward, 3])
+                run (Syncs.RollForSeconds, [SyncsAdjSpeed(100, config), SyncsHeading(0), SyncsDir.forward, 3])
                 run (Syncs.WaitSeconds, [2])
-                run (Syncs.RollForSeconds, [SyncsSpeed(100), SyncsHeading(0), SyncsDir.backward, 3])
+                run (Syncs.RollForSeconds, [SyncsAdjSpeed(100, config), SyncsHeading(0), SyncsDir.backward, 3])
                 run (Syncs.SetBackLED, [SyncsBrightness(0)])
                 
                 exec { ctx.logNote("Press q to quit, r to run again") }
@@ -103,7 +103,7 @@ func driveManualModeFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig,
                 }
                 strong {
                     `repeat` {
-                        run (Syncs.Roll, [val.speed, val.heading, val.dir])
+                        run (Syncs.Roll, [SyncsAdjSpeed(val.speed, config), val.heading, val.dir])
                         await { ctx.clock.tick }
                     }
                 }
@@ -183,7 +183,7 @@ let rollControllerModule = Module { name in
         }
     }
     
-    activity (name.RollController, [name.speed, name.heading, name.dir, name.requests]) { val in
+    activity (name.RollController, [name.speed, name.heading, name.dir, name.requests, name.config]) { val in
         `defer` { (val.requests as SyncsRequests).stopRoll(towards: val.heading) }
         
         when {  val.prevSpeed != val.speed as SyncsSpeed
@@ -195,7 +195,7 @@ let rollControllerModule = Module { name in
                 val.prevDir = val.dir as SyncsDir
             }
             `repeat` {
-                run (Syncs.Roll, [val.speed, val.heading, val.dir])
+                run (Syncs.Roll, [SyncsAdjSpeed(val.speed, val.config), val.heading, val.dir])
                 
                 `if` { val.speed as SyncsSpeed == 0 } then: {
                     await { false }
@@ -242,7 +242,7 @@ func driveNormalizedManualModeFunc(_ engine: SyncsEngine, _ config: SyncsControl
                     run (name.SpeedAndHeadingConverter, [val.speed, val.heading], [val.loc.syncsSpeed, val.loc.syncsHeading, val.loc.syncsDir])
                 }
                 strong {
-                    run (name.RollController, [val.syncsSpeed, val.syncsHeading, val.syncsDir, ctx.requests])
+                    run (name.RollController, [val.syncsSpeed, val.syncsHeading, val.syncsDir, ctx.requests, ctx.config])
                 }
             }
         }
@@ -306,7 +306,7 @@ let blinkControllerModule = Module { name in
 /// Module to drive the actuator.
 let actuatorModule = Module { name in
     
-    activity (name.Actuator, [name.speed, name.heading, name.shouldBlink, name.requests]) { val in
+    activity (name.Actuator, [name.speed, name.heading, name.shouldBlink, name.requests, name.config]) { val in
         exec {
             val.syncsSpeed = SyncsSpeed(0)
             val.syncsHeading = SyncsHeading(0)
@@ -317,7 +317,7 @@ let actuatorModule = Module { name in
                 run (name.SpeedAndHeadingConverter, [val.speed, val.heading], [val.loc.syncsSpeed, val.loc.syncsHeading, val.loc.syncsDir])
             }
             strong {
-                run (name.RollController, [val.syncsSpeed, val.syncsHeading, val.syncsDir, val.requests])
+                run (name.RollController, [val.syncsSpeed, val.syncsHeading, val.syncsDir, val.requests, val.config])
             }
             strong {
                 `if` { val.shouldBlink } then: {
@@ -347,7 +347,7 @@ func driveRollAndBlinkFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfi
                     run (name.ManualController, [input], [val.loc.speed, val.loc.heading])
                 }
                 strong {
-                    run (name.Actuator, [val.speed, val.heading, true, ctx.requests])
+                    run (name.Actuator, [val.speed, val.heading, true, ctx.requests, ctx.config])
                 }
             }
         }
@@ -383,7 +383,7 @@ class DriveController : DemoController {
                         run (name.Controller, [], [val.loc.speed, val.loc.heading])
                     }
                     strong {
-                        run (name.Actuator, [val.speed, val.heading, true, ctx.requests])
+                        run (name.Actuator, [val.speed, val.heading, true, ctx.requests, ctx.config])
                     }
                 }
             }

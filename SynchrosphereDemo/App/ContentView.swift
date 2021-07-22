@@ -12,6 +12,14 @@ struct ContentView: View {
         VStack {
             VStack {
                 HStack {
+                    Picker("Robot:", selection: $model.selectedRobot) {
+                        ForEach(Robot.allCases) { robot in
+                            Text(robot.rawValue)
+                        }
+                    }
+                    .frame(width: 150)
+                    .disabled(model.isRunning)
+
                     Picker("Demo:", selection: $model.selectedDemo) {
                         ForEach(Demo.allCases) { demo in
                             Text(demo.rawValue)

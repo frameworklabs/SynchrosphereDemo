@@ -396,6 +396,7 @@ func ioMyDemoFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ inpu
         activity (name.Main, []) { val in
             // Replace these lines with your control code!
             exec { ctx.logInfo("My Demo") }
+            run (Syncs.SetBackLED, [SyncsBrightness(100)])
             await { false }
         }
     }
