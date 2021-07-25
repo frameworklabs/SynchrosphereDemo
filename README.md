@@ -58,9 +58,7 @@ Each controller needs an activity called "Main" as its entry-point. In this demo
 * set the main led black
 * wait for 1 second
 
-To make the demo known to the App, you have to register it by:  
-* adding a new case to the Demo enum using an explicit raw value string for the display in the UI drop-down.
-* returning a factory for the new enum case.
+To make the demo known to the App, you have to add a  `Demo` struct containing a display title and a factory function (and an optional set of supported robot types) to the list of all demos named `Demo.all` (living in "DemoRegistry.swift").
 
 #### IO - Hello by Class
 

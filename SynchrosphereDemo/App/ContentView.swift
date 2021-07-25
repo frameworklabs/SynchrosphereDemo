@@ -21,8 +21,8 @@ struct ContentView: View {
                     .disabled(model.isRunning)
 
                     Picker("Demo:", selection: $model.selectedDemo) {
-                        ForEach(Demo.allCases) { demo in
-                            Text(demo.rawValue)
+                        ForEach(Demo.all(for: model.selectedRobot), id: \.self) { demo in
+                            Text(demo.title)
                         }
                     }
                     .disabled(model.isRunning)

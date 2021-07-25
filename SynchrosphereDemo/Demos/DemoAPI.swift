@@ -5,7 +5,7 @@ import Synchrosphere
 import Foundation // For CharacterSet
 
 /// Demo classes have to adopt to this protocol - or adhere to the `FactoryFunction` signature.
-protocol DemoController : class {
+protocol DemoController : AnyObject {
     
     /// Needs to be implemented to create a `SyncsController` to control the spehro robot.
     func makeSyncsController(engine: SyncsEngine, config: SyncsControllerConfig, input: Input) -> SyncsController

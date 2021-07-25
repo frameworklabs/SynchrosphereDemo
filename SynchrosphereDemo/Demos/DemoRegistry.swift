@@ -1,38 +1,82 @@
 // Project Synchrosphere
 // Copyright 2021, Framework Labs.
 
-/// The registry of all available demos.
-///
-/// If you add your own demo, add a new case and extend  `demoFactory` below.
-enum Demo : String, CaseIterable, Identifiable {
-    case ioHello = "IO - Hello"
-    case ioHelloByClass = "IO - Hello by Class"
-    case ioSubActivity = "IO - Sub Activity"
-    case ioSubActivityInModule = "IO - Sub Activity in Module"
-    case ioAwaitInput = "IO - Await Input"
-    case ioPreemptOnInput = "IO - Preempt on Input"
-    case ioPreemptWithDefer = "IO - Preempt with Defer"
-    case ioQueryColor = "IO - Query Color"
-    case ioConcurrentTrails = "IO - Concurrent Trails"
-    case ioStreamingActivity = "IO - Streaming Activity"
-    case ioWeakPreemption = "IO - Weak Preemption"
-    case ioFinalControl = "IO - Final Control"
-    case ioMyDemo = "IO - My Demo"
-    case driveRollAhead = "Drive - Roll Ahead"
-    case driveRollAheadAndBack = "Drive - Roll Ahead and Back"
-    case driveManualMode = "Drive - Manual Mode"
-    case driveNormalizedManualMode = "Drive - Normalized Manual Mode"
-    case driveRollAndBlink = "Drive - Roll and Blink"
-    case driveSquare = "Drive - Square"
-    case driveCircle = "Drive - Circle"
-    case driveMyDemo = "Drive - My Demo"
-    case sensorLogSamples = "Sensor - Log Samples"
-    case sensorSquareMeter = "Sensor - Square Meter"
-    case sensorFollowPath = "Sensor - Follow Path"
-    case sensorMyDemo = "Sensor - My Demo"
+import Synchrosphere
+
+extension Demo {
     
-    var id: Demo {
-        return self
+    /// The registry of all available demos.
+    ///
+    /// If you have a new demo you need to add it here.
+    static let all = [
+        Demo(title: "IO - Hello", function: ioHelloFunc),
+        Demo(title: "IO - Hello by Class", controller: IOHelloController()),
+        Demo(title: "IO - Sub Activity", function: ioSubActivityFunc),
+        Demo(title: "IO - Sub Activity in Module", function: ioSubActivityInModuleFunc),
+        Demo(title: "IO - Await Input", function: ioAwaitInputFunc),
+        Demo(title: "IO - Preempt on Input", function: ioPreemptOnInputFunc),
+        Demo(title: "IO - Preempt with Defer", function: ioPreemptWithDeferFunc),
+        Demo(title: "IO - Query Color", function: ioQueryColorFunc),
+        Demo(title: "IO - Concurrent Trails", function: ioConcurrentTrailsFunc),
+        Demo(title: "IO - Streaming Activity", function: ioStreamingActivityFunc),
+        Demo(title: "IO - Weak Preemption", function: ioWeakPreemptionFunc),
+        Demo(title: "IO - Final Control", controller: IOFinalController(timeout: 30)),
+        Demo(title: "IO - My Demo", function: ioMyDemoFunc),
+        Demo(title: "Drive - Roll Ahead", function: driveRollAheadFunc),
+        Demo(title: "Drive - Roll Ahead and Back", function: driveRollAheadAndBackFunc),
+        Demo(title: "Drive - Manual Mode", function: driveManualModeFunc),
+        Demo(title: "Drive - Normalized Manual Mode", function: driveNormalizedManualModeFunc),
+        Demo(title: "Drive - Roll and Blink", function:driveRollAndBlinkFunc),
+        Demo(title: "Drive - Square", controller: DriveSquareController(speed: 0.5, timeMillis: 2000)),
+        Demo(title: "Drive - Circle", controller: DriveCircleController(speed: 0.5)),
+        Demo(title: "Drive - My Demo", controller: DriveMyDemoController()),
+        Demo(title: "Sensor - Log Samples", controller: SensorLogSamplesController()),
+        Demo(title: "Sensor - Square Meter", controller: SensorSquareMeterController()),
+        Demo(title: "Sensor - Follow Path", controller: SensorFollowPathController()),
+        Demo(title: "Sensor - My Demo", controller: SensorMyDemoController()),
+    ]
+    
+    static func all(for robot: Robot) -> [Demo] {
+        all.filter { $0.supports(robot) }
+    }
+    
+    func supports(_ robot: Robot) -> Bool {
+        robots == nil || robots!.contains(robot)
+    }
+}
+
+/// Holds info about a demo like its title, the supported robots and the way how to instantiate the demo.
+struct Demo : Hashable, Identifiable {
+    let title: String
+    let factory: DemoFactory
+    let robots: Set<Robot>?
+
+    /// Creates a Demo description with the given `title` and the provided `function`.
+    /// If you don't provide a set of supported `robots` then the demo will be fine for all robot types.
+    init(title: String, function: @escaping FactoryFunction, robots: Set<Robot>? = nil) {
+        self.title = title
+        self.factory = .function(function)
+        self.robots = robots
+    }
+
+    /// Creates a Demo description with the given `title` and the provided `controller`.
+    /// If you don't provide a set of supported `robots` then the demo will be fine for all robot types.
+    init(title: String, controller: DemoController, robots: Set<Robot>? = nil) {
+        self.title = title
+        self.factory = .controller(controller)
+        self.robots = robots
+    }
+    
+    static func == (lhs: Demo, rhs: Demo) -> Bool {
+        lhs.title == rhs.title
+    }
+
+    func hash(into hasher: inout Hasher) {
+        title.hash(into: &hasher)
+    }
+    
+    var id: String {
+        return title
     }
 }
 
@@ -46,63 +90,18 @@ enum DemoFactory {
     case controller(DemoController)
 }
 
-extension Demo {
+enum Robot : String, CaseIterable, Identifiable {
+    case rvr = "RVR"
+    case mini = "Mini"
     
-    /// Returns the factory for the demo.
-    ///
-    /// If you add your own demo, you have to extend this method too.
-    var demoFactory:  DemoFactory {
+    var id: Robot {
+        return self
+    }
+    
+    var deviceSelector: SyncsDeviceSelector {
         switch self {
-        case .ioHello:
-            return .function(ioHelloFunc)
-        case .ioHelloByClass:
-            return .controller(IOHelloController())
-        case .ioSubActivity:
-            return .function(ioSubActivityFunc)
-        case .ioSubActivityInModule:
-            return .function(ioSubActivityInModuleFunc)
-        case .ioAwaitInput:
-            return .function(ioAwaitInputFunc)
-        case .ioPreemptOnInput:
-            return .function(ioPreemptOnInputFunc)
-        case .ioPreemptWithDefer:
-            return .function(ioPreemptWithDeferFunc)
-        case .ioQueryColor:
-            return .function(ioQueryColorFunc)
-        case .ioConcurrentTrails:
-            return .function(ioConcurrentTrailsFunc)
-        case .ioStreamingActivity:
-            return .function(ioStreamingActivityFunc)
-        case .ioWeakPreemption:
-            return .function(ioWeakPreemptionFunc)
-        case .ioFinalControl:
-            return .controller(IOFinalController(timeout: 30))
-        case .ioMyDemo:
-            return .function(ioMyDemoFunc)
-        case .driveRollAhead:
-            return .function(driveRollAheadFunc)
-        case .driveRollAheadAndBack:
-            return .function(driveRollAheadAndBackFunc)
-        case .driveManualMode:
-            return .function(driveManualModeFunc)
-        case .driveNormalizedManualMode:
-            return .function(driveNormalizedManualModeFunc)
-        case.driveRollAndBlink:
-            return .function(driveRollAndBlinkFunc)
-        case .driveSquare:
-            return .controller(DriveSquareController(speed: 0.5, timeMillis: 2000))
-        case .driveCircle:
-            return .controller(DriveCircleController(speed: 0.5))
-        case .driveMyDemo:
-            return .controller(DriveMyDemoController())
-        case .sensorLogSamples:
-            return .controller(SensorLogSamplesController())
-        case .sensorSquareMeter:
-            return .controller(SensorSquareMeterController())
-        case .sensorFollowPath:
-            return .controller(SensorFollowPathController())
-        case .sensorMyDemo:
-            return .controller(SensorMyDemoController())
+        case .rvr: return .anyRVR
+        case .mini: return .anyMini
         }
     }
 }

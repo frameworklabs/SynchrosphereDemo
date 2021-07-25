@@ -10,8 +10,14 @@ import Foundation
 /// Creates, starts and stopps the current demo. Provides the state of the demo to the UI.
 class Model: ObservableObject {
 
-    @Published var selectedRobot = Robot.rvr
-    @Published var selectedDemo = Demo.ioHello
+    @Published var selectedRobot = Robot.rvr {
+        didSet {
+            if !selectedDemo.supports(selectedRobot) {
+                selectedDemo = Demo.all.first!
+            }
+        }
+    }
+    @Published var selectedDemo: Demo = Demo.all.first!
     
     @Published var isRunning = false
     @Published var isBluetoothAvailable = false
@@ -32,38 +38,14 @@ class Model: ObservableObject {
         
     private let engine = SyncsEngine()
     private let input = Input()
-    private var config: SyncsControllerConfig!
     private var demoController: DemoController?
     private var syncsController: SyncsController?
-
-    func makeConfig() {
-        config = SyncsControllerConfig(deviceSelector: selectedRobot.deviceSelector)
-        config.stateDidChangeCallback = { [unowned self] state in
-            self.isRunning = state.contains(.isRunning)
-            self.isBluetoothAvailable = state.contains(.isBluetoothAvailable)
-            self.isScanning = state.contains(.isScanning)
-            self.foundDevice = state.contains(.foundDevice)
-            self.isConnecting = state.contains(.isConnecting)
-            self.isConnected = state.contains(.isConnected)
-            self.isIntrospecting = state.contains(.isIntrospecting)
-            self.isAwake = state.contains(.isAwake)
-            self.isBatteryLow = state.contains(.isBatteryLow)
-            self.isBatteryCritical = state.contains(.isBatteryCritical)
-        }
-        config.logFunction = { [unowned self] msg, level in
-            self.logLines.append(LogLine(message: msg, level: level))
-        }
-        config.didTickCallback = { [unowned self] in
-            self.input.clear()
-        }
-    }
             
     func start() {
         logLines.removeAll()
 
-        demoController = selectedDemo.demoFactory.demoController
-        makeConfig()
-        syncsController = demoController?.makeSyncsController(engine: engine, config: config, input: input)
+        demoController = selectedDemo.factory.demoController
+        syncsController = demoController?.makeSyncsController(engine: engine, config: makeConfig(), input: input)
         
         if let explanation = demoController?.explanation {
             syncsController?.context.logInfo(explanation)
@@ -84,21 +66,28 @@ class Model: ObservableObject {
         input.key = keyCharacters
         ctrl.context.tick()
     }
-}
-
-enum Robot : String, CaseIterable, Identifiable {
-    case rvr = "RVR"
-    case mini = "Mini"
     
-    var id: Robot {
-        return self
-    }
-    
-    var deviceSelector: SyncsDeviceSelector {
-        switch self {
-        case .rvr: return .anyRVR
-        case .mini: return .anyMini
+    private func makeConfig() -> SyncsControllerConfig {
+        var config = SyncsControllerConfig(deviceSelector: selectedRobot.deviceSelector)
+        config.stateDidChangeCallback = { [unowned self] state in
+            self.isRunning = state.contains(.isRunning)
+            self.isBluetoothAvailable = state.contains(.isBluetoothAvailable)
+            self.isScanning = state.contains(.isScanning)
+            self.foundDevice = state.contains(.foundDevice)
+            self.isConnecting = state.contains(.isConnecting)
+            self.isConnected = state.contains(.isConnected)
+            self.isIntrospecting = state.contains(.isIntrospecting)
+            self.isAwake = state.contains(.isAwake)
+            self.isBatteryLow = state.contains(.isBatteryLow)
+            self.isBatteryCritical = state.contains(.isBatteryCritical)
         }
+        config.logFunction = { [unowned self] msg, level in
+            self.logLines.append(LogLine(message: msg, level: level))
+        }
+        config.didTickCallback = { [unowned self] in
+            self.input.clear()
+        }
+        return config
     }
 }
 
