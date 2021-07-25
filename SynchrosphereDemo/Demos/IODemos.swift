@@ -389,6 +389,63 @@ class IOFinalController : DemoController {
     }
 }
 
+/// Lets the three primary colors r, g, b rotate around the robot at different speeds.
+func rvrColorCircleFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ input: Input) -> SyncsController {
+    let orderedLEDs: [SyncsRVRLEDs] = [
+        .headlightRight, .powerButtonFront, .powerButtonRear, .breaklightRight,
+        .breaklightLeft, .batteryDoorRear, .batteryDoorFront, .headlightLeft
+    ]
+    func posToLED(_ pos: Int) -> SyncsRVRLEDs {
+        orderedLEDs[pos]
+    }
+    
+    return engine.makeController(for: config) { name, ctx in
+                
+        activity (name.Main, []) { val in
+            exec {
+                val.pos1 = Int(0)
+                val.pos2 = Int(0)
+                val.pos3 = Int(0)
+            }
+            cobegin {
+                strong {
+                    run (name.Cycle, [5], [val.loc.pos1])
+                }
+                strong {
+                    run (name.Cycle, [7], [val.loc.pos2])
+                }
+                strong {
+                    run (name.Cycle, [11], [val.loc.pos3])
+                }
+                strong {
+                    `repeat` {
+                        `await` { ctx.clock.tick }
+                        exec {
+                            var mapping = [SyncsRVRLEDs.all: SyncsColor.black]
+                            mapping[posToLED(val.pos1)] = .red
+                            mapping[posToLED(val.pos2)] = .green
+                            mapping[posToLED(val.pos3)] = .blue
+                            val.mapping = mapping
+                        }
+                        run (Syncs.SetRVRLEDs, [val.mapping])
+                    }
+                }
+            }
+        }
+        
+        activity (name.Cycle, [name.ticks], [name.pos]) { val in
+            `repeat` {
+                run (Syncs.WaitTicks, [val.ticks])
+                exec {
+                    let oldPos: Int = val.pos
+                    let newPos = (oldPos + 1) % 8
+                    val.pos = newPos
+                }
+            }
+        }
+    }
+}
+
 /// This is a playground demo for your IO experiments.
 func ioMyDemoFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ input: Input) -> SyncsController {
     engine.makeController(for: config) { name, ctx in

@@ -21,6 +21,7 @@ extension Demo {
         Demo(title: "IO - Streaming Activity", function: ioStreamingActivityFunc),
         Demo(title: "IO - Weak Preemption", function: ioWeakPreemptionFunc),
         Demo(title: "IO - Final Control", controller: IOFinalController(timeout: 30)),
+        Demo(title: "IO - RVR Color Circle", function: rvrColorCircleFunc, robots: [.rvr]),
         Demo(title: "IO - My Demo", function: ioMyDemoFunc),
         Demo(title: "Drive - Roll Ahead", function: driveRollAheadFunc),
         Demo(title: "Drive - Roll Ahead and Back", function: driveRollAheadAndBackFunc),

@@ -421,6 +421,64 @@ QueryPeriod > ____/
 
 In contrast to static component models, Pappe - or Blech - can be seen as dynamic component models controlled by a structured imperative program.
 
+#### IO - RVR Color Circle
+
+A  demo which is specific to the RVR. I.e. this demo is *not*  available for any other robot type as it requires the set of LEDs present only on the RVR.
+
+Here, we send the three primary colors red, green and blue to "circle around the RVR" at different speeds. The RVR has 8 LEDs all around its edges and when
+lighting them up in the right order, the illusion appears that the color travels around the robot.
+
+When an LED slot is "occupied" by more than one color, the LED will shine in a color which is the combination (max of each color channel) of all the colors of this slot.
+Using prime numbers to derive the speed of each color results in a rich overal color pattern.
+
+```Swift
+activity (name.Main, []) { val in
+    exec {
+        val.pos1 = Int(0)
+        val.pos2 = Int(0)
+        val.pos3 = Int(0)
+    }
+    cobegin {
+        strong {
+            run (name.Cycle, [5], [val.loc.pos1])
+        }
+        strong {
+            run (name.Cycle, [7], [val.loc.pos2])
+        }
+        strong {
+            run (name.Cycle, [11], [val.loc.pos3])
+        }
+        strong {
+            `repeat` {
+                `await` { ctx.clock.tick }
+                exec {
+                    var mapping = [SyncsRVRLEDs.all: SyncsColor.black]
+                    mapping[posToLED(val.pos1)] = .red
+                    mapping[posToLED(val.pos2)] = .green
+                    mapping[posToLED(val.pos3)] = .blue
+                    val.mapping = mapping
+                }
+                run (Syncs.SetRVRLEDs, [val.mapping])
+            }
+        }
+    }
+}
+
+activity (name.Cycle, [name.ticks], [name.pos]) { val in
+    `repeat` {
+        run (Syncs.WaitTicks, [val.ticks])
+        exec {
+            let oldPos: Int = val.pos
+            let newPos = (oldPos + 1) % 8
+            val.pos = newPos
+        }
+    }
+}
+```
+
+We use the helper activity `Cycle` three times to generate three position values from 0 to 7 at varying speeds. These different positions are then converted to 
+an LED and mapped to a different primary color each. To reset the colors of the previous step, we map all LEDs to black first. For optimization (not shown here), we could instead remember the past positions and set the LEDs corresponding to them to black only.
+
 #### IO - My Demo
 
 This is a playground demo for your IO experiments.
