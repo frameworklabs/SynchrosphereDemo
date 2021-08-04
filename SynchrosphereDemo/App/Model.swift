@@ -64,7 +64,7 @@ class Model: ObservableObject {
         guard let ctrl = syncsController else { return }
         ctrl.context.logInfo("key pressed: \(keyCharacters)")
         input.key = keyCharacters
-        ctrl.context.tick()
+        ctrl.context.trigger()
     }
     
     private func makeConfig() -> SyncsControllerConfig {

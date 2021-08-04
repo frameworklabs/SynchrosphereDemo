@@ -34,7 +34,7 @@ class SensorLogSamplesController : DriveController {
                         run (Syncs.SensorStreamer, [self.ctx.config.tickFrequency, SyncsSensors(arrayLiteral: .yaw, .location, .velocity)], [val.loc.sample])
                     }
                     weak {
-                        nowAndEvery { self.ctx.clock.tick } do: {
+                        always {
                             self.ctx.logInfo("sample: \(val.sample as SyncsSample)")
                         }
                     }
@@ -70,14 +70,14 @@ class DriveWithSensorController : DriveController {
                     }
                     weak {
                         `if` { self.logSamples } then: {
-                            nowAndEvery { self.ctx.clock.tick } do: {
+                            always {
                                 self.ctx.logInfo("sample: \(val.sample as SyncsSample)")
                             }
                         }
                     }
                     strong {
                         `while` { (val.sample as SyncsSample).sensors.isEmpty } repeat: {
-                            await { self.ctx.clock.tick }
+                            pause
                         }
                         run (name.DriveWithSensorController, [val.sample], [val.loc.speed, val.loc.heading])
                     }
@@ -110,19 +110,19 @@ class SensorSquareMeterController : DriveWithSensorController {
                     val.heading = Float(0)
                 }
                 `while` { abs((val.sample as SyncsSample).y - 1) > self.precision } repeat: {
-                    await { self.ctx.clock.tick }
+                    pause
                 }
                 exec { val.heading -= Float.pi / 2 }
                 `while` { abs((val.sample as SyncsSample).x - 1) > self.precision } repeat: {
-                    await { self.ctx.clock.tick }
+                    pause
                 }
                 exec { val.heading -= Float.pi / 2 }
                 `while` { abs((val.sample as SyncsSample).y - 0) > self.precision } repeat: {
-                    await { self.ctx.clock.tick }
+                    pause
                 }
                 exec { val.heading -= Float.pi / 2 }
                 `while` { abs((val.sample as SyncsSample).x - 0) > self.precision } repeat: {
-                    await { self.ctx.clock.tick }
+                    pause
                 }
                 exec { val.speed = Float(0) }
             }
@@ -232,7 +232,7 @@ class SensorFollowPathController : DriveWithSensorController {
                     val.done = false
                 }
                 when { val.done } abort: {
-                    nowAndEvery { self.ctx.clock.tick } do: {
+                    always {
                         let sample: SyncsSample = val.sample
                         let wpl: WaypointList = val.wpl
                         let t: Float = val.t
@@ -285,7 +285,7 @@ class SensorMyDemoController : DriveWithSensorController {
             activity (name.DriveWithSensorController, [name.sample], [name.speed, name.heading]) { val in
                 // Replace these lines with your control code!
                 exec { self.ctx.logInfo("My Demo") }
-                await { false }
+                halt
             }
         }
     }

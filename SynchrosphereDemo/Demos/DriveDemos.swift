@@ -12,7 +12,7 @@ func driveRollAheadFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, 
         activity (name.Main, []) { val in
             run (Syncs.SetBackLED, [SyncsBrightness(255)])
             run (Syncs.Roll, [SyncsAdjSpeed(100, config), SyncsHeading(0), SyncsDir.forward])
-            await { false }
+            `await` { false }
         }
     }
 }
@@ -30,7 +30,7 @@ func driveRollAheadAndBackFunc(_ engine: SyncsEngine, _ config: SyncsControllerC
                 run (Syncs.SetBackLED, [SyncsBrightness(0)])
                 
                 exec { ctx.logNote("Press q to quit, r to run again") }
-                await { input.didPressKey(in: "rq") }
+                `await` { input.didPressKey(in: "rq") }
             } until: { input.key == "q" }
         }
     }
@@ -104,7 +104,6 @@ func driveManualModeFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig,
                 strong {
                     `repeat` {
                         run (Syncs.Roll, [SyncsAdjSpeed(val.speed, config), val.heading, val.dir])
-                        await { ctx.clock.tick }
                     }
                 }
             }
@@ -198,7 +197,7 @@ let rollControllerModule = Module { name in
                 run (Syncs.Roll, [SyncsAdjSpeed(val.speed, val.config), val.heading, val.dir])
                 
                 `if` { val.speed as SyncsSpeed == 0 } then: {
-                    await { false }
+                    halt
                 } else: {
                     run (Syncs.WaitSeconds, [1])
                 }
@@ -290,7 +289,7 @@ let blinkControllerModule = Module { name in
             
             `if` { val.prevMode == LEDMode.steady } then: {
                 run (Syncs.SetMainLED, [val.col])
-                await { false }
+                halt
             } else: {
                 `repeat` {
                     run (Syncs.SetMainLED, [val.col])
@@ -392,7 +391,7 @@ class DriveController : DemoController {
                 exec {
                     ctx.logNote("Press 'a' to start auto mode, 'm' to start manual mode")
                 }
-                await { input.didPressKey(in: "am") }
+                `await` { input.didPressKey(in: "am") }
                 when { input.didPressKey(in: "am") && input.key != val.prevKey } reset: {
                     exec { val.prevKey = input.key }
                     
@@ -406,7 +405,7 @@ class DriveController : DemoController {
                         exec { val.speed = Float(0) }
                         run (name.ManualController, [input], [val.loc.speed, val.loc.heading])
                     }
-                    await { false }
+                    halt
                 }
             }
         }
@@ -469,7 +468,7 @@ class DriveCircleController : DriveController {
                     val.speed = self.speed
                     val.heading = Float(0)
                 }
-                every { self.ctx.clock.tick } do: {
+                always {
                     val.heading += val.deltaRad as Float
                 }
             }
@@ -485,7 +484,7 @@ class DriveMyDemoController : DriveController {
             activity (name.DriveController, [], [name.speed, name.heading]) { val in
                 // Replace these lines with your control code!
                 exec { self.ctx.logInfo("My Demo") }
-                await { false }
+                halt
             }
         }
     }

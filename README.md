@@ -146,7 +146,7 @@ In addition to `await` this demo also shows the `exec` statement. Within the bod
 ```Swift
 activity (name.Main, []) { val in
     exec { ctx.logInfo("Press 's' to start blinking") }
-    await { input.key == "s" }
+    `await` { input.key == "s" }
     run (name.Blink, [SyncsColor.red, 1000])
 }
 ```
@@ -162,10 +162,12 @@ activity (name.Main, []) { val in
         run (name.Blink, [SyncsColor.red, 1000])
     }
     exec { ctx.logInfo("Blinking stopped") }
-    await { false }
+    halt
 }
 ```
-The `await { false }` statement at the bottom will stop the control flow from proceeding as the condition will never become true obviously. It is present here to see that depending on when you hit "q", the led will either be on or off as you either preempt in the on or off phase of the blinking. The next demo will ensure that the led will always be off when blinking is preempted.
+The `halt` statement at the bottom will stop the control flow from proceeding. It is equivalent to `await { false }` which does not proceed as the condition will never become true obviously. There is also `pause` which is equivalent to `await { true }` which proceeds in the next step. 
+
+Now, `halt` is present here to see that depending on when you hit "q", the led will either be on or off as you either preempt in the on or off phase of the blinking. The next demo will ensure that the led will always be off when blinking is preempted.
 
 #### IO - Preempt with Defer
 
@@ -196,7 +198,7 @@ Let's say we want to query a color from the user before we start blinking the le
 ```Swift
 activity (name.QueryColor, []) { val in
     exec { ctx.logInfo("Select color by pressing 'r', 'g' or 'b'") }
-    await { input.didPressKey(in: "rgb") }
+    `await` { input.didPressKey(in: "rgb") }
     exec {
         switch input.key {
         case "r": val.col = SyncsColor.red
@@ -263,7 +265,7 @@ In the last demo, `QueryColor` had to be called repeatedly as it ended every tim
 activity (name.QueryColor, [], [name.col]) { val in
     `repeat` {
         exec { ctx.logInfo("Select color by pressing 'r', 'g' or 'b'") }
-        await { input.didPressKey(in: "rgb") }
+        `await` { input.didPressKey(in: "rgb") }
         exec {
             switch input.key {
             case "r": val.col = SyncsColor.red
@@ -358,7 +360,7 @@ activity (name.Main, []) { val in
         }
     }
     exec { ctx.logInfo("Demo done - press Stop button to quit!") }
-    await { false }
+    halt
 }
 ```
 
@@ -378,7 +380,7 @@ activity (name.Blink, [name.col, name.period]) { val in
                     `repeat` {
                         exec { val.lastCol = val.col as SyncsColor }
                         run (Syncs.SetMainLED, [val.col])
-                        await { val.col != val.lastCol as SyncsColor }
+                        `await` { val.col != val.lastCol as SyncsColor }
                     }
                 }
             }
@@ -450,7 +452,6 @@ activity (name.Main, []) { val in
         }
         strong {
             `repeat` {
-                `await` { ctx.clock.tick }
                 exec {
                     var mapping = [SyncsRVRLEDs.all: SyncsColor.black]
                     mapping[posToLED(val.pos1)] = .red
@@ -497,10 +498,10 @@ Let's start with rolling straight ahead at medium speed:
 activity (name.Main, []) { val in
     run (Syncs.SetBackLED, [SyncsBrightness(255)])
     run (Syncs.Roll, [SyncsSpeed(100), SyncsHeading(0), SyncsDir.forward])
-    await { false }
+    halt
 }
 ```
-First, we turn the back LED on to see the current orientation of the robot. The back led shows in the opposite direction than the current heading. Then, we issue a command to roll the robot forward with speed 100 and heading 0. The `await` statement at the end will prevent the demo from finishing automatically.
+First, we turn the back LED on to see the current orientation of the robot. The back led shows in the opposite direction than the current heading. Then, we issue a command to roll the robot forward with speed 100 and heading 0. The `halt` statement at the end will prevent the demo from finishing automatically.
 
 You will notice, that the robot will roll for 2 seconds before it stops. This is expected and a standard approach in robotics. To prevent that a robot continues to move when communication between control and actuator is broken, the robots actuator will stop when it doesn't get new commands from its control for a defined duration.
 
@@ -520,7 +521,7 @@ activity (name.Main, []) { val in
         run (Syncs.SetBackLED, [SyncsBrightness(0)])
         
         exec { ctx.logInfo("Press q to quit, r to run again") }
-        await { input.didPressKey(in: "rq") }
+        `await` { input.didPressKey(in: "rq") }
     } until: { input.key == "q" }
 }
 ```
@@ -550,7 +551,6 @@ activity (name.Main, []) { val in
         strong {
             `repeat` {
                 run (Syncs.Roll, [val.speed, val.heading, val.dir])
-                await { ctx.clock.tick }
             }
         }
     }
@@ -558,7 +558,7 @@ activity (name.Main, []) { val in
 ```
 The body of the activity consists of two concurrent trails - one for obtaining the input from the user and the other for issuing driving commands to the robot.
 
-With `ctx.clock.tick` we issue roll commands to the robot at the frequency of the clock - which is configurable via the `tickFrequency` property of `SyncsControllerConfig` which is 10 Hz by default. This is short enough so that we don't need to use the `RollForSeconds` command here.
+We issue roll commands to the robot at the frequency of the clock - which is configurable via the `tickFrequency` property of `SyncsControllerConfig` which is 10 Hz by default. This is short enough so that we don't need to use the `RollForSeconds` command here.
 
 `QueryInput` is structured equivalently to the way we continuously queried the user for a color or period in the IO Demos. The only complication here is that the `Roll` activities input parameter domains are very restricted - the heading has to be given in unsigned integer degrees from 0 to 359. The next demo will simplify things in this regard.
 
@@ -634,7 +634,7 @@ activity (name.RollController, [name.speed, name.heading, name.dir]) { val in
             run (Syncs.Roll, [val.speed, val.heading, val.dir])
             
             `if` { val.speed as SyncsSpeed == 0 } then: {
-                await { false }
+                halt
             } else: {
                 run (Syncs.WaitSeconds, [1])
             }
@@ -710,7 +710,7 @@ activity (name.Blink, [name.col, name.period, name.requests]) { val in
         
         `if` { val.prevMode == LEDMode.steady } then: {
             run (Syncs.SetMainLED, [val.col])
-            await { false }
+            halt
         } else: {
             `repeat` {
                 run (Syncs.SetMainLED, [val.col])
@@ -759,7 +759,7 @@ activity (name.DriveController, [], [name.speed, name.heading]) { val in
         val.speed = Float(0.5)
         val.heading = Float(0)
     }
-    every { self.context.clock.tick } do: {
+    always {
         val.heading += val.deltaRad as Float
     }
 }
@@ -799,7 +799,7 @@ activity (name.DriveController, [], [name.speed, name.heading]) { val in
             run (Syncs.SensorStreamer, [self.ctx.config.tickFrequency, SyncsSensors(arrayLiteral: .yaw, .location, .velocity)], [val.loc.sample])
         }
         weak {
-            nowAndEvery { self.ctx.clock.tick } do: {
+            always {
                 self.ctx.logInfo("sample: \(val.sample as SyncsSample)")
             }
         }
@@ -823,19 +823,19 @@ activity (name.DriveWithSensorController, [name.sample], [name.speed, name.headi
         val.heading = Float(0)
     }
     `while` { abs((val.sample as SyncsSample).y - 1) > self.precision } repeat: {
-        await { self.ctx.clock.tick }
+        pause
     }
     exec { val.heading -= Float.pi / 2 }
     `while` { abs((val.sample as SyncsSample).x - 1) > self.precision } repeat: {
-        await { self.ctx.clock.tick }
+        pause
     }
     exec { val.heading -= Float.pi / 2 }
     `while` { abs((val.sample as SyncsSample).y - 0) > self.precision } repeat: {
-        await { self.ctx.clock.tick }
+        pause
     }
     exec { val.heading -= Float.pi / 2 }
     `while` { abs((val.sample as SyncsSample).x - 0) > self.precision } repeat: {
-        await { self.ctx.clock.tick }
+        pause
     }
     exec { val.speed = Float(0) }
 }
@@ -863,7 +863,7 @@ activity (name.DriveWithSensorController, [name.sample], [name.speed, name.headi
         val.done = false
     }
     when { val.done } abort: {
-        nowAndEvery { self.ctx.clock.tick } do: {
+        always {
             let sample: SyncsSample = val.sample
             let wpl: WaypointList = val.wpl
             let t: Float = val.t

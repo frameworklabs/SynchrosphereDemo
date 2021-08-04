@@ -92,7 +92,7 @@ func ioAwaitInputFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ 
         
         activity (name.Main, []) { val in
             exec { ctx.logNote("Press 's' to start blinking") }
-            await { input.key == "s" }
+            `await` { input.key == "s" }
             run (name.Blink, [SyncsColor.red, 1000])
         }
     }
@@ -111,7 +111,7 @@ func ioPreemptOnInputFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig
                 run (name.Blink, [SyncsColor.red, 1000])
             }
             exec { ctx.logInfo("Blinking stopped") }
-            await { false }
+            halt
         }
     }
 }
@@ -146,7 +146,7 @@ func ioPreemptWithDeferFunc(_ engine: SyncsEngine, _ config: SyncsControllerConf
                 run (name.Blink, [SyncsColor.red, 1000, ctx.requests])
             }
             exec { ctx.logInfo("Blinking stopped") }
-            await { false }
+            halt
         }
     }
 }
@@ -156,7 +156,7 @@ let queryColorOnceModule = Module { name in
     
     activity (name.QueryColor, [name.log, name.input]) { val in
         exec { (val.log as SyncsLogging).logNote("Select color by pressing 'r', 'g' or 'b'") }
-        await { (val.input as Input).didPressKey(in: "rgb") }
+        `await` { (val.input as Input).didPressKey(in: "rgb") }
         exec {
             let input: Input = val.input
             switch input.key {
@@ -217,7 +217,7 @@ let queryColorModule = Module { name in
     activity (name.QueryColor, [name.log, name.input], [name.col]) { val in
         `repeat` {
             exec { (val.log as SyncsLogging).logNote("Select color by pressing 'r', 'g' or 'b'") }
-            await { (val.input as Input).didPressKey(in: "rgb") }
+            `await` { (val.input as Input).didPressKey(in: "rgb") }
             exec {
                 let input: Input = val.input
                 switch input.key {
@@ -294,7 +294,7 @@ class IOFinalController : DemoController {
             activity (name.QueryColor, [], [name.col]) { val in
                 `repeat` {
                     exec { ctx.logNote("Select color by pressing 'r', 'g' or 'b'") }
-                    await { input.didPressKey(in: "rgb") }
+                    `await` { input.didPressKey(in: "rgb") }
                     exec {
                         switch input.key {
                         case "r": val.col = SyncsColor.red
@@ -309,7 +309,7 @@ class IOFinalController : DemoController {
             activity (name.QueryPeriod, [], [name.period]) { val in
                 `repeat` {
                     exec { ctx.logNote("Increase period by pressing '+', decrease it by '-'") }
-                    await { input.didPressKey(in: "+-") }
+                    `await` { input.didPressKey(in: "+-") }
                     exec {
                         let period: Int = val.period
                         switch input.key {
@@ -334,7 +334,7 @@ class IOFinalController : DemoController {
                                 `repeat` {
                                     exec { val.lastCol = val.col as SyncsColor }
                                     run (Syncs.SetMainLED, [val.col])
-                                    await { val.col != val.lastCol as SyncsColor }
+                                    `await` { val.col != val.lastCol as SyncsColor }
                                 }
                             }
                         }
@@ -383,7 +383,7 @@ class IOFinalController : DemoController {
                     }
                 }
                 exec { ctx.logNote("Demo done - press Stop button to quit!") }
-                await { false }
+                halt
             }
         }
     }
@@ -419,7 +419,6 @@ func rvrColorCircleFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, 
                 }
                 strong {
                     `repeat` {
-                        `await` { ctx.clock.tick }
                         exec {
                             var mapping = [SyncsRVRLEDs.all: SyncsColor.black]
                             mapping[posToLED(val.pos1)] = .red
@@ -454,7 +453,7 @@ func ioMyDemoFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, _ inpu
             // Replace these lines with your control code!
             exec { ctx.logInfo("My Demo") }
             run (Syncs.SetBackLED, [SyncsBrightness(100)])
-            await { false }
+            halt
         }
     }
 }
