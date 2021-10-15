@@ -196,14 +196,14 @@ func ioConcurrentTrailsFunc(_ engine: SyncsEngine, _ config: SyncsControllerConf
         activity (name.Main, []) { val in
             exec { val.col = SyncsColor.red }
             cobegin {
-                strong {
+                with {
                     `repeat` {
                         run (name.QueryColor, [ctx, input]) { col in
                             val.col = col!
                         }
                     }
                 }
-                strong {
+                with {
                     run (name.Blink, [val.col, 1000, ctx.requests])
                 }
             }
@@ -241,10 +241,10 @@ func ioStreamingActivityFunc(_ engine: SyncsEngine, _ config: SyncsControllerCon
         activity (name.Main, []) { val in
             exec { val.col = SyncsColor.red }
             cobegin {
-                strong {
+                with {
                     run (name.QueryColor, [ctx, input], [val.loc.col])
                 }
-                strong {
+                with {
                     run (name.Blink, [val.col, 1000, ctx.requests])
                 }
             }
@@ -262,13 +262,13 @@ func ioWeakPreemptionFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig
         activity (name.Main, []) { val in
             exec { val.col = SyncsColor.red }
             cobegin {
-                strong {
+                with {
                     run (Syncs.WaitSeconds, [10])
                 }
-                weak {
+                with (.weak) {
                     run (name.QueryColor, [ctx, input], [val.loc.col])
                 }
-                weak {
+                with (.weak) {
                     run (name.Blink, [val.col, 1000, ctx.requests])
                 }
             }
@@ -327,10 +327,10 @@ class IOFinalController : DemoController {
                     `defer` { ctx.requests.setMainLED(to: .black) }
                     `repeat` {
                         cobegin {
-                            strong {
+                            with {
                                 run (Syncs.WaitMilliseconds, [val.period])
                             }
-                            weak {
+                            with (.weak) {
                                 `repeat` {
                                     exec { val.lastCol = val.col as SyncsColor }
                                     run (Syncs.SetMainLED, [val.col])
@@ -339,10 +339,10 @@ class IOFinalController : DemoController {
                             }
                         }
                         cobegin {
-                            strong {
+                            with {
                                 run (Syncs.WaitMilliseconds, [val.period])
                             }
-                            weak {
+                            with (.weak) {
                                 run (Syncs.SetMainLED, [SyncsColor.black])
                             }
                         }
@@ -358,10 +358,10 @@ class IOFinalController : DemoController {
                 }
                 when { input.key == "q" } abort: {
                     cobegin {
-                        strong {
+                        with {
                             run (Syncs.WaitSeconds, [self.timeout])
                         }
-                        weak {
+                        with (.weak) {
                             `repeat` {
                                 exec {
                                     let remaining: Int = val.remaining
@@ -371,13 +371,13 @@ class IOFinalController : DemoController {
                                 run (Syncs.WaitSeconds, [1])
                             }
                         }
-                        weak {
+                        with (.weak) {
                             run (name.QueryColor, [], [val.loc.col])
                         }
-                        weak {
+                        with (.weak) {
                             run (name.QueryPeriod, [], [val.loc.period])
                         }
-                        weak {
+                        with (.weak) {
                             run (name.Blink, [val.col, val.period])
                         }
                     }
@@ -408,16 +408,16 @@ func rvrColorCircleFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig, 
                 val.pos3 = Int(0)
             }
             cobegin {
-                strong {
+                with {
                     run (name.Cycle, [5], [val.loc.pos1])
                 }
-                strong {
+                with {
                     run (name.Cycle, [7], [val.loc.pos2])
                 }
-                strong {
+                with {
                     run (name.Cycle, [11], [val.loc.pos3])
                 }
-                strong {
+                with {
                     `repeat` {
                         exec {
                             var mapping = [SyncsRVRLEDs.all: SyncsColor.black]

@@ -98,10 +98,10 @@ func driveManualModeFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfig,
                 val.dir = SyncsDir.forward
             }
             cobegin {
-                strong {
+                with {
                     run (name.QueryInput, [], [val.loc.speed, val.loc.heading, val.loc.dir])
                 }
-                strong {
+                with {
                     `repeat` {
                         run (Syncs.Roll, [SyncsAdjSpeed(val.speed, config), val.heading, val.dir])
                     }
@@ -221,10 +221,10 @@ func driveNormalizedManualModeFunc(_ engine: SyncsEngine, _ config: SyncsControl
                 val.heading = Float(0)
             }
             cobegin {
-                strong {
+                with {
                     run (name.ManualController, [input], [val.loc.speed, val.loc.heading])
                 }
-                strong {
+                with {
                     run (name.Actuator, [val.speed, val.heading])
                 }
             }
@@ -237,10 +237,10 @@ func driveNormalizedManualModeFunc(_ engine: SyncsEngine, _ config: SyncsControl
                 val.syncsDir = SyncsDir.forward
             }
             cobegin {
-                strong {
+                with {
                     run (name.SpeedAndHeadingConverter, [val.speed, val.heading], [val.loc.syncsSpeed, val.loc.syncsHeading, val.loc.syncsDir])
                 }
-                strong {
+                with {
                     run (name.RollController, [val.syncsSpeed, val.syncsHeading, val.syncsDir, ctx.requests, ctx.config])
                 }
             }
@@ -263,7 +263,7 @@ let blinkControllerModule = Module { name in
 
     activity (name.BlinkController, [name.speed, name.heading, name.requests]) { val in
         cobegin {
-            strong {
+            with {
                 always {
                     let speed: Float = val.speed
                     if abs(speed - 0.0) < 0.001 {
@@ -275,7 +275,7 @@ let blinkControllerModule = Module { name in
                     }
                 }
             }
-            strong {
+            with {
                 run (name.Blink, [val.col, val.period, val.requests])
             }
         }
@@ -312,13 +312,13 @@ let actuatorModule = Module { name in
             val.syncsDir = SyncsDir.forward
         }
         cobegin {
-            strong {
+            with {
                 run (name.SpeedAndHeadingConverter, [val.speed, val.heading], [val.loc.syncsSpeed, val.loc.syncsHeading, val.loc.syncsDir])
             }
-            strong {
+            with {
                 run (name.RollController, [val.syncsSpeed, val.syncsHeading, val.syncsDir, val.requests, val.config])
             }
-            strong {
+            with {
                 `if` { val.shouldBlink } then: {
                     run (name.BlinkController, [val.speed, val.heading, val.requests])
                 }
@@ -342,10 +342,10 @@ func driveRollAndBlinkFunc(_ engine: SyncsEngine, _ config: SyncsControllerConfi
                 val.heading = Float(0)
             }
             cobegin {
-                strong {
+                with {
                     run (name.ManualController, [input], [val.loc.speed, val.loc.heading])
                 }
-                strong {
+                with {
                     run (name.Actuator, [val.speed, val.heading, true, ctx.requests, ctx.config])
                 }
             }
@@ -378,10 +378,10 @@ class DriveController : DemoController {
                     val.heading = Float(0)
                 }
                 cobegin {
-                    strong {
+                    with {
                         run (name.Controller, [], [val.loc.speed, val.loc.heading])
                     }
-                    strong {
+                    with {
                         run (name.Actuator, [val.speed, val.heading, true, ctx.requests, ctx.config])
                     }
                 }

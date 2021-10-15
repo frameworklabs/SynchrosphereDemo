@@ -385,8 +385,8 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/frameworklabs/Synchrosphere";
 			requirement = {
-				kind = upToNextMinorVersion;
-				minimumVersion = 0.1.4;
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.3.0;
 			};
 		};
 		6881F3FE25DF4F5700A7F435 /* XCRemoteSwiftPackageReference "swift-numerics" */ = {

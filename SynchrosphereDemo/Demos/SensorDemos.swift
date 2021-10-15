@@ -25,15 +25,15 @@ class SensorLogSamplesController : DriveController {
 
                 exec { val.sample = SyncsSample.unset }
                 cobegin {
-                    strong {
+                    with {
                         exec { val.speed = Float(0.5) }
                         run (Syncs.WaitSeconds, [3])
                         exec { val.speed = Float(0) }
                     }
-                    weak {
+                    with (.weak) {
                         run (Syncs.SensorStreamer, [self.ctx.config.tickFrequency, SyncsSensors(arrayLiteral: .yaw, .location, .velocity)], [val.loc.sample])
                     }
-                    weak {
+                    with (.weak) {
                         always {
                             self.ctx.logInfo("sample: \(val.sample as SyncsSample)")
                         }
@@ -65,17 +65,17 @@ class DriveWithSensorController : DriveController {
                 
                 exec { val.sample = SyncsSample.unset }
                 cobegin {
-                    weak {
+                    with (.weak) {
                         run (Syncs.SensorStreamer, [self.ctx.config.tickFrequency, self.sensors], [val.loc.sample])
                     }
-                    weak {
+                    with (.weak) {
                         `if` { self.logSamples } then: {
                             always {
                                 self.ctx.logInfo("sample: \(val.sample as SyncsSample)")
                             }
                         }
                     }
-                    strong {
+                    with {
                         `while` { (val.sample as SyncsSample).sensors.isEmpty } repeat: {
                             pause
                         }
