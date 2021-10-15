@@ -185,14 +185,9 @@ let rollControllerModule = Module { name in
     activity (name.RollController, [name.speed, name.heading, name.dir, name.requests, name.config]) { val in
         `defer` { (val.requests as SyncsRequests).stopRoll(towards: val.heading) }
         
-        when {  val.prevSpeed != val.speed as SyncsSpeed
-                || val.prevHeading != val.heading as SyncsHeading
-                || val.prevDir != val.dir as SyncsDir } reset: {
-            exec {
-                val.prevSpeed = val.speed as SyncsSpeed
-                val.prevHeading = val.heading as SyncsHeading
-                val.prevDir = val.dir as SyncsDir
-            }
+        when {  val.prev.peed != val.speed as SyncsSpeed
+                || val.prev.heading != val.heading as SyncsHeading
+                || val.prev.dir != val.dir as SyncsDir } reset: {
             `repeat` {
                 run (Syncs.Roll, [SyncsAdjSpeed(val.speed, val.config), val.heading, val.dir])
                 

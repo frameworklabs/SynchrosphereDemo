@@ -322,8 +322,7 @@ class IOFinalController : DemoController {
             }
             
             activity (name.Blink, [name.col, name.period]) { val in
-                when { val.period != val.prevPeriod as Int } reset: {
-                    exec { val.prevPeriod = val.period as Int }
+                when { val.period != val.prev.period as Int } reset: {
                     `defer` { ctx.requests.setMainLED(to: .black) }
                     `repeat` {
                         cobegin {
